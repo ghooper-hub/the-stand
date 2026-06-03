@@ -141,6 +141,7 @@
   .predictBlock h3{font-size:16px;display:flex;align-items:center;gap:7px;margin-bottom:2px;}
   .predictBlock .pv{font-size:36px;font-weight:900;text-align:center;color:var(--grape2);font-variant-numeric:tabular-nums;}
   .predictLine{font-weight:900;font-size:16px;margin-bottom:10px;background:#faf2ff;border:1.5px solid #ecd6fb;border-radius:13px;padding:11px 13px;animation:popIn .4s cubic-bezier(.2,1.4,.4,1) both;}
+  .predictLine .fcWhy{font-weight:600;font-size:13px;color:var(--ink2);margin-top:8px;line-height:1.5;}
   .deckFoot{margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
   #planNote{font-size:14px;font-weight:700;}
 
@@ -172,7 +173,10 @@
   @keyframes rainfall{from{transform:translateY(-16px);opacity:.3;}to{transform:translateY(34px);opacity:.9;}}
   .standScene .shimmer{animation:shim 2s ease-in-out infinite;}
   @keyframes shim{0%,100%{opacity:.25;}50%{opacity:.7;}}
-  @media(prefers-reduced-motion:reduce){ .standScene .cust{animation-duration:.01s;} .standScene .rain line{animation:none;} }
+  @media(prefers-reduced-motion:reduce){
+    .standScene .cust{animation-duration:.01s;} .standScene .rain line{animation:none;}
+    #decor span,.logo,.balloon,.daydot.now,.taphint,.standScene .shimmer{animation:none !important;}
+  }
   .pl{width:100%;border-collapse:collapse;margin-top:6px;}
   .pl tr{animation:rise .35s ease both;}
   .pl td{padding:9px 4px;border-bottom:1px solid var(--line);font-size:16px;}
@@ -296,7 +300,7 @@
       </div>
     </div>
 
-    <div id="results" class="card hidden" style="margin-top:14px;">
+    <div id="results" class="card hidden" style="margin-top:14px;" aria-live="polite">
       <h2 id="resTitle">Day 1 — Results</h2>
       <div class="beat" id="beatCrowd">
         <div class="predictLine hidden" id="predictLine"></div>
@@ -343,6 +347,13 @@
       <div class="bubble"><div class="face">🧑‍🏫</div><div class="msg" id="revealMsg"></div></div>
     </div>
 
+    <div class="card" id="transferCard" style="margin-top:14px;">
+      <h2 style="font-size:22px;">🤝 This was your job all along</h2>
+      <div class="muted" style="margin-bottom:14px;font-weight:600;">Every lever you just pulled is a conversation you'll have with a merchant.</div>
+      <div id="transferBody"></div>
+      <div class="bubble" style="margin-top:4px;"><div class="face">🚀</div><div class="msg" id="transferMsg"></div></div>
+    </div>
+
     <div class="card" id="recapCard" style="margin-top:14px;">
       <h2 style="font-size:22px;">📋 Your report card</h2>
       <div class="muted recapHead" id="recapHead"></div>
@@ -351,6 +362,7 @@
 
     <div class="card" style="margin-top:14px;">
       <h2 style="font-size:20px;margin-bottom:8px;">🏆 All-time records</h2>
+      <div class="muted" id="lbScope" style="font-size:12px;font-weight:800;margin-bottom:6px;"></div>
       <table class="lb" id="lbTable"></table>
     </div>
   </section>
@@ -406,6 +418,9 @@ const CONFIG = {
   repeatDecay:0.80,
   day1FreeStock:60,
   stars: { three:90, two:45 },   // day-profit thresholds for ⭐ rating
+  // Shared leaderboard: paste a Google Apps Script web-app URL (see README) to
+  // turn the records board into a cohort-wide one. Leave "" for device-local only.
+  leaderboardUrl: "",
 };
 
 function unlocks(mode, day){
@@ -431,7 +446,15 @@ const EVENTS={
 };
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-function dayEvent(seed, day){
+/* Guided mode runs a FIXED event curriculum so each day's lesson reliably lands —
+   instead of leaving the teaching to chance. Mechanic-introduction days (1–3) stay
+   calm so the lever itself is the only variable; the days whose lesson depends on
+   demand get a guaranteed event: a heatwave on sign day so the sign clearly pays,
+   a busy day-6 so the deal's converts visibly return, and a viral finale on day 7.
+   Sandbox keeps the seeded-random weather for replay variety. */
+const GUIDED_ARC = { 1:"none", 2:"none", 3:"none", 4:"heat", 5:"none", 6:"fair", 7:"hype" };
+function dayEvent(seed, day, mode){
+  if(mode==="guided") return EVENTS[GUIDED_ARC[day]] || EVENTS.none;
   if(day===1) return EVENTS.none;                       // clean baseline on day 1
   const r=mulberry32((seed ^ Math.imul(day,2654435761))>>>0);
   if(r()<0.55) return EVENTS.none;                      // ~45% chance of an event
@@ -470,7 +493,7 @@ function simulate(){
   const signOn = U.sign && S.signOn;
   const dealOn = U.deal && S.dealOn;
 
-  const ev = dayEvent(S.seed, day);
+  const ev = dayEvent(S.seed, day, mode);
   const em = ev.mult || 1;                              // today's event demand multiplier
   const priceFrac = clamp(1 - S.price/CONFIG.maxPrice, 0, 1);
   const loyalFrac = clamp(1 - S.price/(CONFIG.maxPrice*CONFIG.loyalPriceTolerance), 0, 1);
@@ -529,7 +552,7 @@ function simulate(){
   if(profit>0) S.streak++; else S.streak=0;
 
   const res={ day, traffic, event:ev, returningDemand, walkDemand, dealDemand,
-    demandTotal: returningDemand+walkDemand+dealDemand, predict:S.predict,
+    demandTotal: returningDemand+walkDemand+dealDemand, predict:S.predict, price:S.price,
     sReturn, sWalk, sDeal, servedTotal, revenue, revFull, revDeal,
     lemSpend, cupSpend, signSpend, spend,
     lemSpoiledUnits:paidSpoiledUnits, spoilCost,
@@ -737,7 +760,7 @@ function renderDeck(){
   renderEvent(); renderPredict(); updatePlan();
 }
 function renderEvent(){
-  const ev=dayEvent(S.seed,S.day), eb=$("eventBanner");
+  const ev=dayEvent(S.seed,S.day,S.mode), eb=$("eventBanner");
   if(ev.key==="none"){ eb.className=""; eb.innerHTML=""; return; }
   eb.className="eventBanner "+(ev.mult>=1?"up":"down");
   eb.innerHTML=`<span class="ee">${ev.emoji}</span>
@@ -745,7 +768,7 @@ function renderEvent(){
     <span class="etag">${ev.mult>=1?"📈":"📉"} ${ev.tag}</span>`;
 }
 function renderPredict(){
-  const max=Math.round(CONFIG.maxCustomers*2);
+  const max=Math.round(CONFIG.maxCustomers*3);   // headroom for stacked event + deal multipliers
   S.predict=clamp(S.predict||25,0,max);
   $("predictBlock").className="predictBlock";
   $("predictBlock").innerHTML=`<h3>🔮 Your call: how many customers show up today?</h3>
@@ -814,6 +837,19 @@ function scheduleBeat(delay){ clearBeatTimer(); beatTimer=setTimeout(advanceBeat
 $("openBtn").addEventListener("click",()=>{ if($("openBtn").disabled) return;
   Sound.whoosh(); haptic(12); const r=simulate(); startResults(r); });
 
+/* name the forces that actually moved today's crowd, so the forecast becomes a
+   teachable read of demand instead of a blind guess */
+function forecastWhy(r){
+  const parts=[], ev=r.event||EVENTS.none;
+  if(ev.key!=="none"){ const pct=Math.round((ev.mult-1)*100);
+    parts.push(`${ev.emoji} ${ev.title} (${pct>=0?"+":""}${pct}% demand)`); }
+  if(r.price>=3.5) parts.push(`your ${dollars(r.price)} price held walk-ins back`);
+  else if(r.price<=1.25) parts.push(`your low ${dollars(r.price)} price pulled a crowd`);
+  if(r.returningDemand>0) parts.push(`🔁 ${r.returningDemand} regulars came back`);
+  if(r.dealDemand>0) parts.push(`💜 the deal flooded in ${r.dealDemand}`);
+  if(!parts.length) return "";
+  return `<div class="fcWhy">What moved it: ${parts.join(" · ")}</div>`;
+}
 function startResults(r){
   curR=r; beatState=0;
   $("deck").classList.add("hidden"); $("results").classList.remove("hidden");
@@ -829,7 +865,7 @@ function startResults(r){
   else if(diff>0){ picon="📈"; ptxt=`${diff} more than you thought`; }
   else { picon="📉"; ptxt=`${-diff} fewer than you thought`; }
   const pl=$("predictLine"); pl.classList.remove("hidden");
-  pl.innerHTML=`🔮 You guessed <b>${guess}</b> · <b>${showed}</b> showed up — ${picon} ${ptxt}`;
+  pl.innerHTML=`🔮 You guessed <b>${guess}</b> · <b>${showed}</b> showed up — ${picon} ${ptxt}`+forecastWhy(r);
   setTimeout(()=>{ Math.abs(diff)<=tol ? Sound.star(2) : Sound.pop(); }, 120);
   // beat 0: the stand opens for business — animated scene
   renderStand(r);
@@ -1005,7 +1041,8 @@ function endGame(){
   $("iqStars").textContent="⭐".repeat(iq)+"☆".repeat(5-iq);
   $("iqLabel").textContent=({1:"Day one. Keep playing.",2:"Getting it.",3:"Solid instincts.",4:"Sharp operator.",5:"You think like a merchant. 🧠"})[iq]||"";
   $("codeLine").innerHTML=`🎟️ Challenge code: <b>${seedToCode(S.seed)}</b> — share it so a friend plays your exact week.`;
-  renderReveal(); renderRecap(); saveRecord(S.name,S.cumProfit); renderLeaderboard();
+  renderReveal(); renderTransfer(); renderRecap();
+  saveRecord(S.name,S.cumProfit); postRemote(S._lastEntry); renderLeaderboard();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
@@ -1027,6 +1064,29 @@ function renderReveal(){
   $("revealMsg").innerHTML = total>=0
     ? `The discount wasn't the price of a cup — it was the price of <b>winning a customer</b>. You filled cups that would've sat empty, and some became regulars.<br><br><b>Hold that feeling.</b> An empty 7pm table or an unbooked spa slot <i>is</i> spoiled lemonade — and the same move turns it into cash plus future customers.`
     : `You took the deal but didn't turn enough into regulars — stock enough to actually <i>serve</i> the deal crowd next time, so more come back.`;
+}
+
+/* ============================================================ TRANSFER PANEL
+   The payoff of the whole game: translate each lemonade fundamental into the
+   exact merchant conversation a new BD rep will have. Ties back to their run. */
+function renderTransfer(){
+  const total=(S.dealDirectRev-S.dealDirectCogs)+(S.dealRepeatRev-S.dealRepeatCogs);
+  const items=[
+    {emoji:"💰",name:"Pricing is the first thing they fight",
+     line:`The price seesaw you played all week is the call every merchant wrestles with. Your job: help them land the price that fills seats <i>without</i> giving away margin.`},
+    {emoji:"🗑️",name:"Empty capacity is spoiled lemonade",
+     line:`A restaurant table empty at 8pm, an unsold spa hour, a hotel room dark tonight — that's lemonade spoiling. It's revenue that can <b>never</b> be recovered. That gap is what you sell into.`},
+    {emoji:"🪧",name:"Their costs are fixed",
+     line:`Rent, staff and lights get paid whether 2 or 40 customers walk in. Filling otherwise-empty capacity is almost pure margin — the easiest yes you'll ever pitch.`},
+    {emoji:"✨",name:"The deal is the hook",
+     line:`A Groupon deal floods a merchant with customers they'd never have reached. The discount isn't a loss — it's the <b>cost of acquiring a customer</b>, the same bet you took on day ${CONFIG.deal.unlockDay}.`},
+    {emoji:"🔁",name:"Lifetime value closes it",
+     line:`The first discounted visit buys the customer; the repeats at full price are the profit${S.dealRepeatCount>0?` — exactly the ${dollars(total)} swing you just watched`:``}. "What's a regular worth to you?" is the question that closes the merchant.`},
+  ];
+  $("transferBody").innerHTML=items.map((it,i)=>`<div class="recapRow" style="animation-delay:${i*90}ms">
+    <div class="rIcon">${it.emoji}</div><div class="rMain"><div class="rName">${it.name}</div>
+    <div class="rLine">${it.line}</div></div></div>`).join("");
+  $("transferMsg").innerHTML=`You just spent 7 days running the exact math you'll help merchants run. Now go sell it.`;
 }
 
 /* ============================================================ REPORT CARD
@@ -1131,11 +1191,34 @@ function saveRecord(name,profit){
   S._lastEntry=entry; recs.push(entry); recs.sort((a,b)=>b.profit-a.profit);
   Store.set(LB_KEY,JSON.stringify(recs.slice(0,25)));
 }
-function renderLeaderboard(){
-  const recs=loadRecords(); const rows=["<tr><th>#</th><th>Name</th><th>Mode</th><th>Profit</th></tr>"];
+/* POST this run to the shared board (fire-and-forget). text/plain body keeps it a
+   "simple" request so Apps Script doesn't need to answer a CORS preflight. */
+async function postRemote(entry){
+  if(!CONFIG.leaderboardUrl||!entry) return;
+  try{ await fetch(CONFIG.leaderboardUrl,{method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(entry)}); }catch(e){}
+}
+async function fetchRemote(){
+  if(!CONFIG.leaderboardUrl) return null;
+  try{ const res=await fetch(CONFIG.leaderboardUrl,{method:"GET"}); if(!res.ok) return null;
+    const data=await res.json(); return Array.isArray(data)?data:(data&&data.records)||null; }catch(e){ return null; }
+}
+function renderLbRows(recs,scopeLabel){
+  $("lbScope").textContent=scopeLabel;
+  const rows=["<tr><th>#</th><th>Name</th><th>Mode</th><th>Profit</th></tr>"];
   recs.slice(0,10).forEach((r,i)=>{ const you=S._lastEntry&&r.name===S._lastEntry.name&&Math.abs(r.profit-S._lastEntry.profit)<0.005;
-    rows.push(`<tr class="${you?'you':''}"><td>${i+1}</td><td>${escapeHtml(r.name)}</td><td>${r.mode||'-'}</td><td>${dollars(r.profit)}</td></tr>`); });
+    rows.push(`<tr class="${you?'you':''}"><td>${i+1}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.mode||'-')}</td><td>${dollars(r.profit)}</td></tr>`); });
   $("lbTable").innerHTML=rows.join("");
+}
+function renderLeaderboard(){
+  // render the local board instantly, then upgrade to the global board if configured
+  renderLbRows(loadRecords(), CONFIG.leaderboardUrl ? "🖥️ this device · loading global board…" : "🖥️ records on this device");
+  if(CONFIG.leaderboardUrl){
+    fetchRemote().then(remote=>{
+      if(remote){ remote.sort((a,b)=>b.profit-a.profit); renderLbRows(remote,"🌍 Global — everyone who played"); }
+      else $("lbScope").textContent="🖥️ this device · global board unavailable";
+    });
+  }
 }
 $("againBtn").addEventListener("click",()=>{ Sound.tap(); show("start"); renderBest(); $("nameInput").value=S?S.name:""; });
 
