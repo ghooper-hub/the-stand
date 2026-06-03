@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1a1430" />
+<title>The Stand</title>
+<style>
+  /* ============================================================
+     THE STAND — Stage 1. Single self-contained file, no build step.
+     Economic engine is unchanged from the validated v1; everything
+     below the engine is the "juice" / game-feel layer.
+     ============================================================ */
+  :root{
+    --ink:#1d1630; --ink2:#5b5170; --paper:#fffdf7;
+    --lemon:#ffd23f; --lemon2:#ffb703; --lemon3:#ff9e00;
+    --leaf:#4cc35e; --leaf2:#2fa14a;
+    --grape:#b14be0; --grape2:#8a2be2;
+    --sky:#3aa0ff; --rose:#ff5a7a;
+    --good:#16a34a; --bad:#e23b3b; --neutral:#2580e0;
+    --card:rgba(255,255,255,.92); --line:#efe2b8;
+    --r:22px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); min-height:100%;
+    background:
+      radial-gradient(1200px 700px at 15% -10%, #fff3b0 0%, transparent 55%),
+      radial-gradient(1000px 700px at 110% 10%, #ffd6f0 0%, transparent 50%),
+      linear-gradient(165deg,#fff7d6 0%,#ffe39c 55%,#ffd06b 100%);
+    background-attachment:fixed;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  .wrap{max-width:780px;margin:0 auto;padding:18px 16px 110px;position:relative;z-index:2;}
+  h1,h2,h3{margin:0;font-weight:900;letter-spacing:-.02em;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  .hidden{display:none !important;}
+  .muted{color:var(--ink2);}
+  .center{text-align:center;}
+  .pos{color:var(--good);} .neg{color:var(--bad);} .info{color:var(--neutral);}
+
+  /* floating background decor */
+  #decor{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+  #decor span{position:absolute;font-size:42px;opacity:.16;animation:float 14s ease-in-out infinite;}
+  @keyframes float{0%,100%{transform:translateY(0) rotate(-6deg);}50%{transform:translateY(-26px) rotate(8deg);}}
+  /* confetti / particle canvas */
+  #fx{position:fixed;inset:0;z-index:80;pointer-events:none;}
+
+  /* cards */
+  .card{background:var(--card);border:1px solid rgba(255,255,255,.7);border-radius:var(--r);
+    box-shadow:0 18px 40px rgba(120,80,10,.18), inset 0 1px 0 rgba(255,255,255,.9);
+    padding:20px;backdrop-filter:blur(6px);}
+  .btn{background:linear-gradient(180deg,#ffd84d,#f7b500);color:#3a2d12;font-weight:900;
+    padding:15px 24px;border-radius:999px;font-size:17px;
+    box-shadow:0 6px 0 #c98e00, 0 10px 18px rgba(180,120,0,.35);
+    transition:transform .07s ease, box-shadow .07s ease;}
+  .btn:hover{filter:brightness(1.03);}
+  .btn:active{transform:translateY(5px);box-shadow:0 1px 0 #c98e00, 0 4px 10px rgba(180,120,0,.3);}
+  .btn:disabled{opacity:.45;filter:grayscale(.3);}
+  .btn.lg{font-size:21px;padding:17px 36px;}
+  .btn.go{background:linear-gradient(180deg,#5fe070,#33b24c);color:#06310f;box-shadow:0 6px 0 #1d8235,0 12px 20px rgba(20,120,40,.35);}
+  .btn.go:active{box-shadow:0 1px 0 #1d8235,0 4px 10px rgba(20,120,40,.3);}
+  .btn.grape{background:linear-gradient(180deg,#c46cf0,#9a30e0);color:#fff;box-shadow:0 6px 0 #6c1aa8,0 12px 20px rgba(120,30,180,.35);}
+  .btn.ghost{background:#fff;color:var(--ink);box-shadow:0 4px 0 #e7d49a;border:1px solid var(--line);}
+
+  /* ---------- START ---------- */
+  #start{animation:rise .5s ease both;}
+  .logo{font-size:74px;line-height:1;filter:drop-shadow(0 8px 10px rgba(150,100,0,.25));animation:bob 3s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg);}50%{transform:translateY(-10px) rotate(3deg);}}
+  #start h1{font-size:60px;background:linear-gradient(180deg,#3a2d12,#7a5a10);-webkit-background-clip:text;background-clip:text;color:transparent;margin:4px 0;}
+  .tag{font-size:18px;color:#6a5a2a;font-weight:600;margin-bottom:22px;}
+  #nameInput,#codeInput{font-family:inherit;font-size:19px;font-weight:700;padding:14px 18px;border-radius:16px;
+    border:2px solid var(--line);width:100%;max-width:340px;text-align:center;background:#fff;}
+  #codeInput{font-size:15px;max-width:300px;text-transform:uppercase;margin-top:14px;letter-spacing:.08em;}
+  #codeInput::placeholder{text-transform:none;letter-spacing:normal;}
+  #nameInput:focus,#codeInput:focus{outline:none;border-color:var(--lemon2);box-shadow:0 0 0 4px rgba(255,183,3,.2);}
+  .modepick{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:14px 0;}
+  .modecard{flex:1;min-width:220px;text-align:left;background:#fff;border:2.5px solid var(--line);
+    border-radius:18px;padding:16px;transition:.15s;}
+  .modecard:active{transform:scale(.98);}
+  .modecard.sel{border-color:var(--lemon2);box-shadow:0 10px 22px rgba(180,120,0,.2);transform:translateY(-2px);}
+  .modecard h3{font-size:19px;margin-bottom:4px;}
+  .modecard p{margin:0;font-size:13.5px;color:var(--ink2);font-weight:500;}
+  .label{font-weight:800;color:#6a5a2a;margin:18px 0 8px;font-size:15px;letter-spacing:.02em;}
+
+  /* ---------- HUD ---------- */
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px;}
+  .hud .stat{background:var(--card);border:1px solid rgba(255,255,255,.7);border-radius:15px;
+    padding:10px 11px;box-shadow:0 8px 18px rgba(120,80,10,.12);}
+  .hud .stat .lbl{font-size:10.5px;color:var(--ink2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;}
+  .hud .stat .val{font-size:21px;font-weight:900;font-variant-numeric:tabular-nums;}
+  .hud .stat.streak .val{color:var(--lemon3);}
+  .daystrip{display:flex;gap:5px;margin-bottom:14px;}
+  .daydot{flex:1;height:9px;border-radius:999px;background:rgba(255,255,255,.55);box-shadow:inset 0 1px 2px rgba(150,110,20,.2);transition:.3s;}
+  .daydot.done{background:linear-gradient(90deg,#5fe070,#33b24c);}
+  .daydot.now{background:linear-gradient(90deg,#ffd84d,#f7b500);animation:pulseDot 1.2s ease-in-out infinite;}
+  @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:.55;}}
+
+  /* ---------- DECK ---------- */
+  .deck{animation:rise .35s ease both;}
+  .deck h2{font-size:27px;margin-bottom:3px;}
+  .deck .sub{color:#6a5a2a;font-weight:600;margin-bottom:14px;font-size:15.5px;}
+  .lever{border-top:1.5px dashed var(--line);padding:15px 0;animation:rise .4s ease both;}
+  .lever:first-of-type{border-top:none;}
+  .lever h3{font-size:17px;display:flex;align-items:center;gap:7px;}
+  .lever .hint{font-size:13px;color:var(--ink2);margin:3px 0 11px;font-weight:500;}
+  .new{background:linear-gradient(180deg,#5fe070,#33b24c);color:#fff;font-size:10.5px;padding:3px 9px;border-radius:999px;font-weight:900;letter-spacing:.03em;box-shadow:0 3px 8px rgba(30,120,50,.35);}
+  input[type=range]{width:100%;height:38px;accent-color:var(--lemon2);}
+  .bignum{font-size:30px;font-weight:900;min-width:74px;text-align:center;font-variant-numeric:tabular-nums;}
+  .stepper{display:flex;align-items:center;gap:8px;}
+  .stepper button{width:50px;height:50px;border-radius:15px;background:#fff;border:2.5px solid var(--line);font-size:26px;font-weight:900;color:var(--ink);box-shadow:0 4px 0 #ecdca0;transition:.06s;}
+  .stepper button:active{transform:translateY(4px);box-shadow:0 0 0 #ecdca0;}
+  .costnote{font-size:14px;color:var(--ink2);margin-left:8px;font-weight:700;}
+  .priceRow{display:flex;justify-content:space-between;align-items:center;}
+  .toggle{display:inline-flex;align-items:center;gap:11px;background:#fff;border:2.5px solid var(--line);
+    border-radius:15px;padding:12px 16px;font-weight:800;font-size:15px;transition:.12s;}
+  .toggle:active{transform:scale(.98);}
+  .toggle .dot{width:30px;height:18px;border-radius:999px;background:#d8cda0;position:relative;transition:.2s;}
+  .toggle .dot::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .toggle.on{border-color:var(--grape);background:#faf0ff;}
+  .toggle.on .dot{background:var(--grape);}
+  .toggle.on .dot::after{left:14px;}
+  .dealbox{border:2.5px solid var(--grape);background:linear-gradient(160deg,#fbedff,#fff);border-radius:16px;padding:14px;box-shadow:0 8px 20px rgba(150,50,200,.15);}
+  #capHint{margin-top:14px;font-weight:800;font-size:14.5px;}
+  /* random-event banner */
+  .eventBanner{display:flex;gap:11px;align-items:center;border-radius:14px;padding:12px 14px;margin-bottom:14px;animation:rise .4s ease both;}
+  .eventBanner>div{flex:1;min-width:0;}
+  .eventBanner .ee{font-size:30px;line-height:1;flex:0 0 auto;}
+  .eventBanner .etag{flex:0 0 auto;}
+  .eventBanner .et{font-weight:900;font-size:16px;}
+  .eventBanner .ed{font-size:13px;color:var(--ink2);font-weight:600;}
+  .eventBanner .etag{margin-left:auto;font-size:12px;font-weight:900;padding:5px 11px;border-radius:999px;background:#fff;white-space:nowrap;}
+  .eventBanner.up{background:linear-gradient(160deg,#eafde9,#fff);border:2px solid var(--leaf);}
+  .eventBanner.up .etag{color:var(--leaf2);}
+  .eventBanner.down{background:linear-gradient(160deg,#eef4ff,#fff);border:2px solid var(--sky);}
+  .eventBanner.down .etag{color:var(--neutral);}
+  /* prediction */
+  .predictBlock{border:2.5px dashed var(--grape);background:linear-gradient(160deg,#faf2ff,#fff);border-radius:16px;padding:14px;margin-top:14px;}
+  .predictBlock h3{font-size:16px;display:flex;align-items:center;gap:7px;margin-bottom:2px;}
+  .predictBlock .pv{font-size:36px;font-weight:900;text-align:center;color:var(--grape2);font-variant-numeric:tabular-nums;}
+  .predictLine{font-weight:900;font-size:16px;margin-bottom:10px;background:#faf2ff;border:1.5px solid #ecd6fb;border-radius:13px;padding:11px 13px;animation:popIn .4s cubic-bezier(.2,1.4,.4,1) both;}
+  .deckFoot{margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+  #planNote{font-size:14px;font-weight:700;}
+
+  /* ---------- RESULTS (beat reveal) ---------- */
+  #results{position:relative;}
+  #results h2{font-size:25px;margin-bottom:12px;}
+  .beat{margin-bottom:6px;}
+  .crowdLbl{font-weight:900;color:#6a5a2a;font-size:14px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+  .crowd{font-size:25px;line-height:1.45;word-break:break-word;min-height:32px;}
+  .crowd span.c{display:inline-block;animation:popIn .3s cubic-bezier(.2,1.5,.4,1) both;}
+  #crowdNote{font-size:15px;margin-top:8px;font-weight:600;}
+
+  /* ---------- open-for-business stand scene ---------- */
+  .standScene{position:relative;width:100%;aspect-ratio:2/1;border-radius:16px;overflow:hidden;
+    border:1px solid var(--line);box-shadow:inset 0 -16px 30px rgba(0,0,0,.05);margin-bottom:10px;background:#bfe3ff;}
+  .standScene svg{display:block;width:100%;height:100%;}
+  .standScene .live{position:absolute;top:9px;left:10px;background:rgba(255,255,255,.92);border-radius:999px;
+    padding:4px 13px;font-weight:900;font-size:15px;box-shadow:0 3px 8px rgba(0,0,0,.12);font-variant-numeric:tabular-nums;}
+  .standScene .cust{position:absolute;bottom:13%;font-size:27px;will-change:transform,opacity;animation:walkUp 2.1s ease-in both;}
+  .standScene .cuppop{position:absolute;font-size:22px;will-change:transform,opacity;animation:cupPop .72s ease both;}
+  .standScene .balloon{position:absolute;font-size:24px;animation:floaty 3s ease-in-out infinite;}
+  @keyframes walkUp{0%{transform:translateX(150px) scale(.75);opacity:0;}22%{opacity:1;}
+    55%{transform:translateX(0) scale(1);}80%{transform:translateX(0) scale(1);opacity:1;}
+    100%{transform:translateX(-46px) scale(.85);opacity:0;}}
+  @keyframes cupPop{0%{transform:translateY(0) scale(.4);opacity:0;}35%{opacity:1;transform:translateY(-12px) scale(1.1);}
+    100%{transform:translateY(-34px) scale(1);opacity:0;}}
+  @keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+  .standScene .rain line{stroke:#dce7f2;stroke-width:2.5;stroke-linecap:round;animation:rainfall .55s linear infinite;}
+  @keyframes rainfall{from{transform:translateY(-16px);opacity:.3;}to{transform:translateY(34px);opacity:.9;}}
+  .standScene .shimmer{animation:shim 2s ease-in-out infinite;}
+  @keyframes shim{0%,100%{opacity:.25;}50%{opacity:.7;}}
+  @media(prefers-reduced-motion:reduce){ .standScene .cust{animation-duration:.01s;} .standScene .rain line{animation:none;} }
+  .pl{width:100%;border-collapse:collapse;margin-top:6px;}
+  .pl tr{animation:rise .35s ease both;}
+  .pl td{padding:9px 4px;border-bottom:1px solid var(--line);font-size:16px;}
+  .pl td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;}
+  .heroProfit{margin-top:14px;text-align:center;}
+  .heroProfit .hp{font-size:58px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;}
+  .heroProfit .hl{font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--ink2);}
+  .stars{font-size:42px;text-align:center;margin:6px 0 2px;letter-spacing:6px;}
+  .stars .s{display:inline-block;opacity:.25;filter:grayscale(1);}
+  .stars .s.on{opacity:1;filter:none;animation:starPop .45s cubic-bezier(.2,1.6,.4,1) both;}
+  .streakTag{text-align:center;font-weight:900;color:var(--lemon3);font-size:17px;margin-bottom:6px;}
+  .bubble{display:flex;gap:11px;align-items:center;background:linear-gradient(160deg,#fff6d2,#fff);border:1.5px solid var(--line);border-radius:16px;padding:14px;margin-top:8px;animation:rise .4s ease both;}
+  .bubble .face{font-size:30px;}
+  .bubble .msg{font-size:17px;font-weight:800;line-height:1.35;}
+  .taphint{text-align:center;color:var(--ink2);font-weight:800;font-size:14px;margin-top:14px;animation:pulseDot 1.1s ease-in-out infinite;}
+  .resFoot{margin-top:14px;text-align:right;}
+
+  @keyframes popIn{from{opacity:0;transform:scale(.3) translateY(6px);}to{opacity:1;transform:scale(1);}}
+  @keyframes starPop{0%{transform:scale(.2) rotate(-30deg);}70%{transform:scale(1.25);}100%{transform:scale(1) rotate(0);}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes shake{10%,90%{transform:translateX(-1px);}30%,70%{transform:translateX(3px);}50%{transform:translateX(-4px);}}
+  .shake{animation:shake .4s;}
+
+  /* ---------- END ---------- */
+  #end{animation:rise .5s ease both;}
+  .scorebig{font-size:70px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;}
+  .pill{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 16px;font-size:15px;font-weight:900;box-shadow:0 6px 14px rgba(120,80,10,.15);}
+  .iqstars{font-size:30px;letter-spacing:3px;margin-top:4px;}
+  .reveal .rc{border-radius:16px;padding:16px;margin-bottom:12px;border:2.5px solid var(--line);background:#fff;animation:rise .5s ease both;}
+  .reveal .rc.brutal{border-color:var(--bad);background:linear-gradient(160deg,#fff1f1,#fff);}
+  .reveal .rc.win{border-color:var(--good);background:linear-gradient(160deg,#f1fdef,#fff);}
+  .reveal .rc .big{font-size:34px;font-weight:900;font-variant-numeric:tabular-nums;}
+  /* report card */
+  .recapHead{font-weight:900;margin-bottom:12px;font-size:15px;}
+  .recapRow{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line);animation:rise .45s ease both;}
+  .recapRow:first-child{border-top:none;}
+  .rIcon{font-size:27px;line-height:1.05;flex:0 0 auto;}
+  .rMain{flex:1;min-width:0;}
+  .rTop{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .rName{font-weight:900;font-size:15.5px;}
+  .rLine{font-size:14px;color:var(--ink2);margin-top:4px;font-weight:500;line-height:1.45;}
+  .rb{font-size:11.5px;font-weight:900;padding:3px 10px;border-radius:999px;white-space:nowrap;}
+  .rb.got{background:#e6f9ec;color:#0f8a3c;}
+  .rb.part{background:#fff2cf;color:#a87400;}
+  .rb.miss{background:#efedf4;color:#766e8c;}
+  .lb{width:100%;border-collapse:collapse;margin-top:6px;}
+  .lb td,.lb th{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:15px;}
+  .lb td:last-child,.lb th:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+  .lb tr.you{background:#fff7d6;font-weight:900;}
+
+  /* ---------- controls (mute) ---------- */
+  .fab{position:fixed;z-index:100;background:var(--card);border:1px solid rgba(255,255,255,.7);
+    border-radius:999px;box-shadow:0 6px 16px rgba(120,80,10,.2);font-weight:800;color:var(--ink2);}
+  #muteBtn{top:12px;right:12px;width:46px;height:46px;font-size:20px;}
+  #facBtn{bottom:12px;right:12px;padding:9px 15px;font-size:13px;}
+
+  /* ---------- modals ---------- */
+  .modal{position:fixed;inset:0;background:rgba(30,20,45,.62);z-index:90;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);}
+  .modal .inner{background:#fff;border-radius:20px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:20px;}
+  .ftable{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .ftable th,.ftable td{border:1px solid var(--line);padding:5px 7px;text-align:center;}
+  .ftable th{background:#fff7d6;}
+  .flag-good{color:var(--good);font-weight:900;} .flag-bad{color:var(--bad);font-weight:900;}
+  .scorering{font-size:42px;font-weight:900;}
+  #shareCanvasWrap{text-align:center;}
+  #shareCanvas{width:100%;max-width:330px;border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.25);}
+
+  @media(max-width:560px){
+    #start h1{font-size:46px;} .scorebig{font-size:54px;} .heroProfit .hp{font-size:46px;}
+    .hud{grid-template-columns:repeat(2,1fr);} .stars{font-size:38px;}
+  }
+</style>
+</head>
+<body>
+<div id="decor"></div>
+<canvas id="fx"></canvas>
+<div class="wrap">
+
+  <!-- ===================== START ===================== -->
+  <section id="start" class="card center">
+    <div class="logo">🍋🧋</div>
+    <h1>The Stand</h1>
+    <div class="tag">Run a lemonade stand for a week. Learn how money really works.</div>
+
+    <div class="label">What should we call you?</div>
+    <input id="nameInput" placeholder="Your name" maxlength="18" autocomplete="off" />
+
+    <div class="label">Pick how you want to play</div>
+    <div class="modepick">
+      <div class="modecard sel" data-mode="guided"><h3>🧭 Guided</h3>
+        <p>One new move unlocks each day. Best your first time.</p></div>
+      <div class="modecard" data-mode="sandbox"><h3>🎛️ Sandbox</h3>
+        <p>Every lever live from day one. For replays.</p></div>
+    </div>
+
+    <input id="codeInput" placeholder="Challenge code (optional)" maxlength="8" autocomplete="off" spellcheck="false" />
+    <div style="margin-top:18px;"><button id="startBtn" class="btn go lg">Open the stand →</button></div>
+    <div id="bestLine" class="muted" style="margin-top:16px;font-size:14px;font-weight:700;"></div>
+  </section>
+
+  <!-- ===================== GAME ===================== -->
+  <section id="game" class="hidden">
+    <div class="hud">
+      <div class="stat"><div class="lbl">Day</div><div class="val" id="hudDay">1/7</div></div>
+      <div class="stat"><div class="lbl">Wallet</div><div class="val" id="hudCash">$50</div></div>
+      <div class="stat"><div class="lbl">Profit</div><div class="val" id="hudProfit">$0</div></div>
+      <div class="stat streak"><div class="lbl">Streak</div><div class="val" id="hudStreak">—</div></div>
+    </div>
+    <div class="daystrip" id="dayStrip"></div>
+
+    <div id="deck" class="card deck">
+      <h2 id="deckTitle">Day 1</h2>
+      <div class="sub" id="deckSub"></div>
+      <div id="eventBanner"></div>
+      <div id="levers"></div>
+      <div id="capHint"></div>
+      <div id="predictBlock"></div>
+      <div class="deckFoot">
+        <div id="planNote" class="muted"></div>
+        <button id="openBtn" class="btn go lg">Open up →</button>
+      </div>
+    </div>
+
+    <div id="results" class="card hidden" style="margin-top:14px;">
+      <h2 id="resTitle">Day 1 — Results</h2>
+      <div class="beat" id="beatCrowd">
+        <div class="predictLine hidden" id="predictLine"></div>
+        <div class="standScene" id="standScene"></div>
+        <div id="crowdNote" class="muted"></div>
+      </div>
+      <div class="beat hidden" id="beatMoney">
+        <table class="pl" id="plTable"></table>
+        <div class="heroProfit"><div class="hl">Day profit</div><div class="hp" id="heroProfit">$0</div></div>
+      </div>
+      <div class="beat hidden" id="beatVerdict">
+        <div class="stars" id="dayStars"></div>
+        <div class="streakTag hidden" id="streakTag"></div>
+        <div class="bubble" id="mentor"><div class="face">🧑‍🏫</div><div class="msg" id="mentorMsg"></div></div>
+      </div>
+      <div class="taphint" id="tapHint">tap to continue ▾</div>
+      <div class="resFoot hidden" id="resFoot"><button id="nextBtn" class="btn go lg">Next day →</button></div>
+    </div>
+  </section>
+
+  <!-- ===================== END ===================== -->
+  <section id="end" class="hidden">
+    <div class="card center">
+      <div class="pill" id="endVerdict">Week complete</div>
+      <h2 style="font-size:21px;margin:14px 0 2px;">Your week at the stand</h2>
+      <div class="scorebig" id="endScore">$0</div>
+      <div class="muted" id="endSub" style="font-weight:700;"></div>
+      <div style="margin-top:14px;">
+        <div class="crowdLbl">Operator IQ</div>
+        <div class="iqstars" id="iqStars"></div>
+        <div class="muted" id="iqLabel" style="font-weight:800;font-size:14px;"></div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button id="shareBtn" class="btn grape">📸 Share my week</button>
+        <button id="againBtn" class="btn ghost">↻ Play again</button>
+      </div>
+      <div class="muted" id="codeLine" style="margin-top:14px;font-size:13px;font-weight:700;"></div>
+    </div>
+
+    <div class="card reveal" id="reveal" style="margin-top:14px;">
+      <h2 style="font-size:24px;margin-bottom:4px;">The thing about that deal…</h2>
+      <div class="muted" style="margin-bottom:14px;font-weight:600;">Remember when discounting felt like a mistake?</div>
+      <div id="revealCards"></div>
+      <div class="bubble"><div class="face">🧑‍🏫</div><div class="msg" id="revealMsg"></div></div>
+    </div>
+
+    <div class="card" id="recapCard" style="margin-top:14px;">
+      <h2 style="font-size:22px;">📋 Your report card</h2>
+      <div class="muted recapHead" id="recapHead"></div>
+      <div id="recapBody"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h2 style="font-size:20px;margin-bottom:8px;">🏆 All-time records</h2>
+      <table class="lb" id="lbTable"></table>
+    </div>
+  </section>
+</div>
+
+<!-- fabs -->
+<button id="muteBtn" class="fab" title="Sound">🔊</button>
+<button id="facBtn" class="fab">🔍 Facilitator</button>
+
+<!-- facilitator modal -->
+<div id="facPanel" class="modal hidden"><div class="inner">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <h2 style="font-size:20px;">Facilitator — comprehension</h2>
+    <button id="facClose" class="btn ghost">Close</button>
+  </div>
+  <div id="facBody"></div>
+  <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button id="facExport" class="btn ghost">⬇ Export JSON</button>
+    <button id="facWipe" class="btn ghost">Clear records</button>
+  </div>
+</div></div>
+
+<!-- share modal -->
+<div id="sharePanel" class="modal hidden"><div class="inner" style="max-width:420px;text-align:center;">
+  <h2 style="font-size:20px;margin-bottom:12px;">Share your week 📲</h2>
+  <div id="shareCanvasWrap"><canvas id="shareCanvas" width="540" height="675"></canvas></div>
+  <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+    <button id="shareDo" class="btn grape">Share</button>
+    <button id="shareDl" class="btn ghost">⬇ Save image</button>
+    <button id="shareClose" class="btn ghost">Close</button>
+  </div>
+</div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   ECONOMIC CONSTANTS — tune after watching a rep play.
+   ============================================================ */
+const CONFIG = {
+  totalDays: 7,
+  startingCash: 50,
+  targetProfit: 420,
+  maxCustomers: 60,
+  maxPrice: 5.00,
+  minSensiblePrice: 0.25,
+  dayTraffic: [1.00,1.05,0.95,1.10,1.20,1.25,1.30],
+  loyalPriceTolerance: 1.4,
+  perishable: { name:"Lemonade", emoji:"🧋", unit:0.60, bulkQty:50, bulkUnit:0.45 },
+  durable:    { name:"Cups", emoji:"🥤", unit:0.20, tiers:[{q:100,u:0.08},{q:50,u:0.12}] },
+  sign: { cost:15, boost:1.4 },
+  deal: { unlockDay:5, surge:60, customerPrice:0.50, platformFeePct:0.15, repeatRate:0.45 },
+  walkInRepeatRate:0.10,
+  repeatDecay:0.80,
+  day1FreeStock:60,
+  stars: { three:90, two:45 },   // day-profit thresholds for ⭐ rating
+};
+
+function unlocks(mode, day){
+  if(mode==="sandbox") return {price:true,buyLem:true,buyCup:true,sign:true,deal:true};
+  return { price:true, buyLem:day>=2, buyCup:day>=3, sign:day>=4, deal:day>=CONFIG.deal.unlockDay };
+}
+function isNew(mode, day, lever){
+  if(mode==="sandbox") return false;
+  const map={buyLem:2,buyCup:3,sign:4,deal:CONFIG.deal.unlockDay};
+  return map[lever]===day;
+}
+
+/* ============================================================ RANDOM EVENTS (seeded)
+   Each run has a seed; the day's event is a deterministic function of (seed, day),
+   so a "challenge code" reproduces the exact same week — fair to compare. */
+const EVENTS={
+  none: {key:"none", mult:1},
+  heat: {key:"heat", emoji:"🌡️", title:"Heatwave!",            desc:"Everyone wants a cold drink today.",      tag:"more customers",     mult:1.45},
+  fair: {key:"fair", emoji:"🎉", title:"Street fair in town",   desc:"Crowds are out and about.",               tag:"more customers",     mult:1.40},
+  hype: {key:"hype", emoji:"📱", title:"You went viral!",       desc:"An influencer shouted out your stand.",   tag:"way more customers", mult:1.75},
+  rain: {key:"rain", emoji:"🌧️", title:"Rainy day",            desc:"Most people are staying inside.",          tag:"fewer customers",    mult:0.55},
+  rival:{key:"rival",emoji:"🏪", title:"A rival stand opened",  desc:"A competitor set up down the block.",      tag:"fewer customers",    mult:0.70},
+};
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function dayEvent(seed, day){
+  if(day===1) return EVENTS.none;                       // clean baseline on day 1
+  const r=mulberry32((seed ^ Math.imul(day,2654435761))>>>0);
+  if(r()<0.55) return EVENTS.none;                      // ~45% chance of an event
+  const pool=[EVENTS.heat,EVENTS.fair,EVENTS.hype,EVENTS.rain,EVENTS.rival];
+  return pool[Math.floor(r()*pool.length)]||EVENTS.none;
+}
+function seedToCode(s){ return (s>>>0).toString(36).toUpperCase(); }
+function codeToSeed(c){ const n=parseInt(String(c).trim().toLowerCase(),36); return isNaN(n)?null:(n>>>0); }
+
+/* ============================================================ STATE */
+let S=null;
+function newGame(name, mode, seed){
+  return { name:name||"You", mode, day:1, cumProfit:0, cupsStock:0,
+    seed: (seed!=null ? (seed>>>0) : Math.floor(Math.random()*2100000000)),
+    repeatWalk:0, repeatDeal:0, streak:0, history:[], log:[],
+    dealDirectRev:0, dealDirectCogs:0, dealDirectCount:0,
+    dealRepeatRev:0, dealRepeatCogs:0, dealRepeatCount:0,
+    bankrupt:false, price:2.50, predict:25, lemBuy:0, cupBuy:0, signOn:false, dealOn:false };
+}
+function cash(){ return CONFIG.startingCash + S.cumProfit; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function lemUnitCost(q){ return q>=CONFIG.perishable.bulkQty ? CONFIG.perishable.bulkUnit : CONFIG.perishable.unit; }
+function cupUnitCost(q){ for(const t of CONFIG.durable.tiers){ if(q>=t.q) return t.u; } return CONFIG.durable.unit; }
+function dollars(n){ const s=Math.abs(n)>=100?Math.round(n):Math.round(n*100)/100;
+  return (n<0?"-$":"$")+Math.abs(s).toLocaleString(undefined,{maximumFractionDigits:2}); }
+
+/* ============================================================ SIMULATION (validated engine) */
+function simulate(){
+  const day=S.day, mode=S.mode, U=unlocks(mode,day);
+  const traffic=CONFIG.dayTraffic[day-1];
+  const freeStock = (mode==="guided" && day===1) ? CONFIG.day1FreeStock : 0;
+  const lemBought = U.buyLem ? S.lemBuy : 0;
+  const lemAvail  = freeStock + lemBought;
+  const cupBought = U.buyCup ? S.cupBuy : 0;
+  const cupAvail  = U.buyCup ? (S.cupsStock + cupBought) : Infinity;
+  const signOn = U.sign && S.signOn;
+  const dealOn = U.deal && S.dealOn;
+
+  const ev = dayEvent(S.seed, day);
+  const em = ev.mult || 1;                              // today's event demand multiplier
+  const priceFrac = clamp(1 - S.price/CONFIG.maxPrice, 0, 1);
+  const loyalFrac = clamp(1 - S.price/(CONFIG.maxPrice*CONFIG.loyalPriceTolerance), 0, 1);
+  const signMult = signOn ? CONFIG.sign.boost : 1;
+  const returningDemand = Math.round((S.repeatWalk + S.repeatDeal) * loyalFrac * em);
+  const walkDemand      = Math.round(CONFIG.maxCustomers * traffic * priceFrac * signMult * em);
+  const dealDemand      = dealOn ? Math.round(CONFIG.deal.surge * traffic * em) : 0;
+
+  let cap = Math.min(lemAvail, cupAvail);
+  const sReturn = Math.min(returningDemand, cap); cap-=sReturn;
+  const sDeal   = Math.min(dealDemand, cap);      cap-=sDeal;
+  const sWalk   = Math.min(walkDemand, cap);      cap-=sWalk;
+  const servedTotal = sReturn+sWalk+sDeal;
+
+  const fullPriceSales = sReturn + sWalk;
+  const revFull = fullPriceSales * S.price;
+  const revDeal = sDeal * CONFIG.deal.customerPrice * (1-CONFIG.deal.platformFeePct);
+  const revenue = revFull + revDeal;
+
+  const lemSpend = lemBought * lemUnitCost(lemBought);
+  const cupSpend = cupBought * cupUnitCost(cupBought);
+  const signSpend= signOn ? CONFIG.sign.cost : 0;
+  const spend = lemSpend + cupSpend + signSpend;
+
+  const lemUsed = servedTotal;
+  const paidLemUsed = Math.max(0, lemUsed - freeStock);
+  const lemSpoiledUnits = Math.max(0, lemAvail - lemUsed);
+  const paidSpoiledUnits = Math.max(0, lemBought - paidLemUsed);
+  const spoilCost = paidSpoiledUnits * lemUnitCost(lemBought);
+
+  if(U.buyCup){ S.cupsStock = Math.max(0, S.cupsStock + cupBought - servedTotal); }
+  const profit = revenue - spend;
+
+  const margCost = CONFIG.perishable.unit + (U.buyCup?CONFIG.durable.unit:0);
+  S.dealDirectRev+=revDeal; S.dealDirectCogs+=sDeal*margCost; S.dealDirectCount+=sDeal;
+  const poolTot=S.repeatWalk+S.repeatDeal;
+  const dealShare = poolTot>0 ? S.repeatDeal/poolTot : 0;
+  const dealReturners = Math.round(sReturn*dealShare);
+  S.dealRepeatCount+=dealReturners; S.dealRepeatRev+=dealReturners*S.price; S.dealRepeatCogs+=dealReturners*margCost;
+
+  S.repeatWalk = Math.round(S.repeatWalk*CONFIG.repeatDecay) + Math.round(sWalk*CONFIG.walkInRepeatRate);
+  S.repeatDeal = Math.round(S.repeatDeal*CONFIG.repeatDecay) + Math.round(sDeal*CONFIG.deal.repeatRate);
+
+  S.log.push({ day, price:S.price, lemBought, cupBought, freeStock,
+    bulkLem: lemBought>=CONFIG.perishable.bulkQty, bulkCup: cupBought>=50,
+    sign:signOn, deal:dealOn, served:servedTotal, sWalk, sDeal, sReturn,
+    demand: returningDemand+walkDemand+dealDemand, predict:S.predict, event:ev.key,
+    soldOut: servedTotal < (returningDemand+walkDemand+dealDemand),
+    spoiledUnits: paidSpoiledUnits, spoilCost:Math.round(spoilCost*100)/100,
+    dealAvailable:U.deal, dealHandledWell: dealOn && dealDemand>0 && sDeal>=0.8*dealDemand,
+    profit:Math.round(profit*100)/100 });
+
+  S.cumProfit += profit;
+  if(cash()<0) S.bankrupt=true;
+  // streak: consecutive profitable days
+  if(profit>0) S.streak++; else S.streak=0;
+
+  const res={ day, traffic, event:ev, returningDemand, walkDemand, dealDemand,
+    demandTotal: returningDemand+walkDemand+dealDemand, predict:S.predict,
+    sReturn, sWalk, sDeal, servedTotal, revenue, revFull, revDeal,
+    lemSpend, cupSpend, signSpend, spend,
+    lemSpoiledUnits:paidSpoiledUnits, spoilCost,
+    cupsLeft:U.buyCup?S.cupsStock:0, cupBought, lemBought, freeStock,
+    profit, signOn, dealOn, U, soldOut: servedTotal<(returningDemand+walkDemand+dealDemand) };
+  S.history.push(res);
+  return res;
+}
+
+/* ============================================================ COMPREHENSION (hidden metric) */
+function comprehension(log){
+  if(!log||!log.length) return null;
+  const buyDays=log.filter(d=>d.lemBought>0);
+  let totBought=0, totSpoiled=0;
+  buyDays.forEach(d=>{ totBought+=d.lemBought; totSpoiled+=d.spoiledUnits; });
+  const spoilRate = totBought>0 ? totSpoiled/totBought : 0;
+  const noOver=buyDays.filter(d=>d.spoiledUnits===0).map(d=>d.day);
+  const firstNoOver=noOver.length?Math.min(...noOver):null;
+  const bulkCupDays=log.filter(d=>d.bulkCup).map(d=>d.day);
+  const firstBulkCup=bulkCupDays.length?Math.min(...bulkCupDays):null;
+  const bulkPerishWaste=log.some(d=>d.bulkLem && d.spoiledUnits>=10);
+  const tookDealOnUnlock=log.some(d=>d.dealAvailable && d.deal && d.day===CONFIG.deal.unlockDay);
+  const dealHandledWell=log.some(d=>d.dealHandledWell);
+  let score=0;
+  score += spoilRate<=0.05?30 : spoilRate<=0.15?20 : spoilRate<=0.30?10 : 0;
+  if(firstBulkCup!==null){ score+=15; if(firstBulkCup<=4) score+=10; }
+  if(!bulkPerishWaste) score+=15;
+  if(tookDealOnUnlock) score+=18;
+  if(dealHandledWell) score+=12;
+  score=Math.min(100,score);
+  return { score, spoilRatePct:Math.round(spoilRate*100), firstDayNoOverbuy:firstNoOver,
+    firstDayBulkDurable:firstBulkCup, bulkPerishableWaste:bulkPerishWaste,
+    tookDealOnUnlock, dealServedWell:dealHandledWell };
+}
+
+/* ============================================================ SAFE STORAGE
+   localStorage throws under file:// in some browsers, Safari private mode, or
+   when cookies/storage are blocked. Wrap every access so it can never halt the
+   script (which would leave buttons unwired and the game unable to start). */
+const Store={
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+  remove(k){ try{ localStorage.removeItem(k); }catch(e){} }
+};
+
+/* ============================================================ SOUND (procedural WebAudio) */
+const Sound=(()=>{
+  let ctx=null, muted=Store.get("theStand.muted")==="1";
+  function ac(){ if(!ctx){ try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(ctx&&ctx.state==="suspended"){ ctx.resume(); } return ctx; }
+  function tone(freq,dur,type,gain,off){ const c=ac(); if(!c||muted) return;
+    const t=c.currentTime+(off||0); const o=c.createOscillator(),g=c.createGain();
+    o.type=type||"sine"; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain||0.18,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.03); }
+  function slide(f1,f2,dur,type,gain){ const c=ac(); if(!c||muted) return;
+    const t=c.currentTime; const o=c.createOscillator(),g=c.createGain(); o.type=type||"sawtooth";
+    o.frequency.setValueAtTime(f1,t); o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(gain||0.2,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur+0.05);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.08); }
+  return {
+    unlock(){ ac(); },
+    coin(){ tone(940,0.07,"square",0.10); tone(1380,0.09,"square",0.09,0.05); },
+    tick(){ tone(1500,0.025,"square",0.04); },
+    cash(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.45,"triangle",0.16,i*0.05)); },
+    star(i){ tone(880+(i||0)*220,0.18,"triangle",0.2); tone(1320+(i||0)*220,0.18,"sine",0.12,0.02); },
+    pop(){ tone(620,0.05,"sine",0.09); },
+    tap(){ tone(420,0.03,"sine",0.05); },
+    whoosh(){ slide(300,900,0.18,"sine",0.07); },
+    womp(){ slide(420,110,0.45,"sawtooth",0.2); },
+    fanfare(){ [523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,0.6,"triangle",0.16,i*0.09)); },
+    toggle(){ muted=!muted; Store.set("theStand.muted",muted?"1":"0"); if(!muted) ac(); return muted; },
+    isMuted(){ return muted; }
+  };
+})();
+function haptic(ms){ if(navigator.vibrate){ try{ navigator.vibrate(ms); }catch(e){} } }
+
+/* ============================================================ PARTICLES / CONFETTI */
+const FX=(()=>{
+  const cv=document.getElementById("fx"), cx=cv.getContext("2d"); let parts=[], raf=null;
+  function size(){ cv.width=innerWidth*devicePixelRatio; cv.height=innerHeight*devicePixelRatio;
+    cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px"; cx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); }
+  size(); addEventListener("resize",size);
+  function loop(){ cx.clearRect(0,0,innerWidth,innerHeight); parts=parts.filter(p=>p.life>0);
+    for(const p of parts){ p.vy+=p.g; p.vx*=0.99; p.x+=p.vx; p.y+=p.vy; p.life--; p.rot+=p.vr;
+      cx.save(); cx.globalAlpha=clamp(p.life/22,0,1); cx.translate(p.x,p.y); cx.rotate(p.rot);
+      if(p.emoji){ cx.font=p.size+"px serif"; cx.textAlign="center"; cx.textBaseline="middle"; cx.fillText(p.emoji,0,0); }
+      else { cx.fillStyle=p.color; cx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6); }
+      cx.restore(); }
+    if(parts.length) raf=requestAnimationFrame(loop); else raf=null; }
+  function add(arr){ parts.push(...arr); if(!raf) raf=requestAnimationFrame(loop); }
+  const COLORS=["#ffd23f","#f7b500","#5fe070","#33b24c","#b14be0","#3aa0ff","#ff5a7a"];
+  return {
+    confetti(x,y,n){ x=x??innerWidth/2; y=y??innerHeight*0.32; const a=[];
+      for(let i=0;i<(n||90);i++) a.push({x,y,vx:(Math.random()-0.5)*13,vy:(Math.random()-0.85)*13,
+        g:0.34,life:60+Math.random()*40,size:7+Math.random()*9,color:COLORS[i%COLORS.length],
+        rot:Math.random()*6,vr:(Math.random()-0.5)*0.4}); add(a); },
+    coins(x,y,n){ const a=[]; for(let i=0;i<(n||14);i++) a.push({x,y,vx:(Math.random()-0.5)*9,
+        vy:-6-Math.random()*8,g:0.42,life:48+Math.random()*22,size:22+Math.random()*12,
+        emoji:Math.random()<0.5?"🪙":"💵",rot:0,vr:(Math.random()-0.5)*0.3}); add(a); },
+    emojiBurst(emoji,x,y,n){ x=x??innerWidth/2; y=y??innerHeight*0.3; const a=[];
+      for(let i=0;i<(n||14);i++) a.push({x,y,vx:(Math.random()-0.5)*10,vy:(Math.random()-0.7)*11,
+        g:0.3,life:55+Math.random()*25,size:24+Math.random()*14,emoji,rot:0,vr:(Math.random()-0.5)*0.3}); add(a); },
+    clear(){ parts=[]; cx.clearRect(0,0,innerWidth,innerHeight); }
+  };
+})();
+
+/* count-up animation */
+function animateNumber(el, from, to, dur, opts){
+  opts=opts||{}; const start=performance.now(); const fmt=opts.format||(v=>Math.round(v));
+  let last=0, finished=false;
+  function finish(){ if(finished) return; finished=true; el.textContent=fmt(to); if(opts.done) opts.done(); }
+  function frame(now){ if(finished) return; let t=Math.min(1,(now-start)/Math.max(1,dur)); const e=1-Math.pow(1-t,3);
+    const v=from+(to-from)*e; el.textContent=fmt(v);
+    if(opts.tick && t<1 && now-last>45){ Sound.tick(); last=now; }
+    if(t<1) requestAnimationFrame(frame); else finish(); }
+  requestAnimationFrame(frame);
+  // safety net: if rAF is throttled (e.g. backgrounded tab), still land on the final value + effects
+  setTimeout(finish, dur+500);
+}
+function elCenter(el){ const r=el.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+const $=id=>document.getElementById(id);
+function show(id){ ["start","game","end"].forEach(s=>$(s).classList.toggle("hidden", s!==id)); }
+
+/* ============================================================ DECOR */
+(function decor(){
+  const d=$("decor"); const ic=["🍋","🧋","🥤","💵","🪙","✨","🍹"];
+  for(let i=0;i<9;i++){ const s=document.createElement("span");
+    s.textContent=ic[i%ic.length]; s.style.left=(Math.random()*100)+"%"; s.style.top=(Math.random()*100)+"%";
+    s.style.animationDelay=(Math.random()*-14)+"s"; s.style.fontSize=(30+Math.random()*36)+"px"; d.appendChild(s); }
+})();
+
+/* ============================================================ START */
+let chosenMode="guided";
+document.querySelectorAll(".modecard").forEach(c=>{
+  c.addEventListener("click",()=>{ Sound.tap(); document.querySelectorAll(".modecard").forEach(x=>x.classList.remove("sel"));
+    c.classList.add("sel"); chosenMode=c.dataset.mode; });
+});
+$("startBtn").addEventListener("click",()=>{
+  Sound.unlock(); Sound.whoosh(); haptic(10);
+  const code=$("codeInput").value.trim();
+  const seed=code?codeToSeed(code):undefined;
+  S=newGame($("nameInput").value.trim()||"You", chosenMode, seed);
+  show("game"); renderDeck();
+});
+function renderBest(){ const r=loadRecords(); $("bestLine").innerHTML = r.length
+  ? `Record to beat: <b>${escapeHtml(r[0].name)}</b> — ${dollars(r[0].profit)}` : "Be the first to set a record."; }
+
+/* ============================================================ DECK */
+function renderDeck(){
+  FX.clear();
+  $("results").classList.add("hidden"); $("deck").classList.remove("hidden");
+  const day=S.day, U=unlocks(S.mode,day);
+  $("hudDay").textContent=`${day}/${CONFIG.totalDays}`;
+  $("hudCash").textContent=dollars(cash());
+  $("hudProfit").textContent=dollars(S.cumProfit);
+  $("hudProfit").className="val "+(S.cumProfit<0?"neg":"");
+  $("hudStreak").textContent=S.streak>=1?("🔥"+S.streak):"—";
+  $("hudTargetWrap") && 0;
+  renderStrip();
+
+  const titles=["Open up","Stock the cart","Cups & bulk","Put up a sign","The deal platform","Word's spreading","Last day"];
+  $("deckTitle").textContent=`Day ${day} — ${titles[Math.min(day-1,titles.length-1)]}`;
+  $("deckSub").innerHTML=deckIntro(day);
+
+  S.lemBuy = U.buyLem ? (S.lemBuy||30) : 0; S.cupBuy=0; S.signOn=false; S.dealOn=false;
+  const L=$("levers"); L.innerHTML="";
+
+  L.appendChild(lever("💰 Price per cup","Charge more per cup, but fewer people buy.", `
+    <input type="range" id="priceR" min="${CONFIG.minSensiblePrice}" max="${CONFIG.maxPrice}" step="0.25" value="${S.price}">
+    <div class="priceRow"><span class="muted">cheap</span>
+      <span class="bignum" id="priceLbl">${dollars(S.price)}</span>
+      <span class="muted">premium</span></div>`, false));
+  $("priceR").addEventListener("input",e=>{ S.price=parseFloat(e.target.value); $("priceLbl").textContent=dollars(S.price); Sound.tick(); updatePlan(); });
+
+  if(U.buyLem){ const p=CONFIG.perishable;
+    L.appendChild(lever(`${p.emoji} Buy ${p.name} (spoils!)`,
+      `${dollars(p.unit)} each (${dollars(p.bulkUnit)} at ${p.bulkQty}+). <b>Unsold lemonade spoils overnight.</b>`,
+      stepperHTML("lem",S.lemBuy), isNew(S.mode,day,"buyLem")));
+    wireStepper("lem", v=>{S.lemBuy=v; updatePlan();}, 0,200,5); }
+
+  if(U.buyCup){ const d2=CONFIG.durable;
+    L.appendChild(lever(`${d2.emoji} Buy ${d2.name} (last forever)`,
+      `${dollars(d2.unit)} each — bulk: 50+ ⇒ ${dollars(0.12)}, 100+ ⇒ ${dollars(0.08)}. <b>Never spoil — leftovers carry over.</b> In stock: ${S.cupsStock}.`,
+      stepperHTML("cup",S.cupBuy), isNew(S.mode,day,"buyCup")));
+    wireStepper("cup", v=>{S.cupBuy=v; updatePlan();}, 0,400,25); }
+
+  if(U.sign){
+    L.appendChild(lever("🪧 Put up a sign",
+      `${dollars(CONFIG.sign.cost)} for the day — you pay it whether or not anyone shows. ~${Math.round((CONFIG.sign.boost-1)*100)}% more traffic.`,
+      `<div class="toggle" id="signT"><span class="dot"></span><span>Run the sign (${dollars(CONFIG.sign.cost)})</span></div>`,
+      isNew(S.mode,day,"sign")));
+    $("signT").addEventListener("click",()=>{ S.signOn=!S.signOn; $("signT").classList.toggle("on",S.signOn); Sound.pop(); haptic(8); updatePlan(); }); }
+
+  if(U.deal){ const dl=CONFIG.deal;
+    L.appendChild(lever("✨ The deal platform",
+      `Floods you with new customers — but each pays just ${dollars(dl.customerPrice)} (you keep ${dollars(dl.customerPrice*(1-dl.platformFeePct))} after their cut).`,
+      `<div class="dealbox"><div class="toggle" id="dealT"><span class="dot"></span><span>List a deal today</span></div>
+       <div class="costnote" style="margin:8px 0 0;">Looks rough. Do it anyway. 👀</div></div>`,
+      isNew(S.mode,day,"deal")));
+    $("dealT").addEventListener("click",()=>{ S.dealOn=!S.dealOn; $("dealT").classList.toggle("on",S.dealOn); Sound.pop(); haptic(8); updatePlan(); }); }
+
+  renderEvent(); renderPredict(); updatePlan();
+}
+function renderEvent(){
+  const ev=dayEvent(S.seed,S.day), eb=$("eventBanner");
+  if(ev.key==="none"){ eb.className=""; eb.innerHTML=""; return; }
+  eb.className="eventBanner "+(ev.mult>=1?"up":"down");
+  eb.innerHTML=`<span class="ee">${ev.emoji}</span>
+    <div><div class="et">${ev.title}</div><div class="ed">${ev.desc}</div></div>
+    <span class="etag">${ev.mult>=1?"📈":"📉"} ${ev.tag}</span>`;
+}
+function renderPredict(){
+  const max=Math.round(CONFIG.maxCustomers*2);
+  S.predict=clamp(S.predict||25,0,max);
+  $("predictBlock").className="predictBlock";
+  $("predictBlock").innerHTML=`<h3>🔮 Your call: how many customers show up today?</h3>
+    <input type="range" id="predictR" min="0" max="${max}" step="1" value="${S.predict}">
+    <div class="pv" id="predictV">${S.predict}</div>`;
+  $("predictR").addEventListener("input",e=>{ S.predict=parseInt(e.target.value,10)||0; $("predictV").textContent=S.predict; Sound.tick(); });
+}
+function deckIntro(day){
+  if(S.mode==="sandbox") return "Everything's unlocked. Cook. 🔥";
+  return ({
+    1:"Day one. Just pick your price. 👀",
+    2:"Now <b>you</b> buy the lemonade. Every cup costs you — sold or not.",
+    3:"Lemonade spoils. Cups don't. Bulk-buy the right one. 📦",
+    4:"Want a sign? Costs the same if 1 person shows or 50.",
+    5:"💜 A deal platform wants to flood you with cheap customers. Looks scary. Do it.",
+    6:"Keep going. Notice anyone… familiar? 👀",
+    7:"Last day. Send it. 🚀",
+  })[day]||"Set your plan, then open up.";
+}
+function lever(title,hint,body,isNewLever){
+  const d=document.createElement("div"); d.className="lever";
+  d.innerHTML=`<h3>${title}${isNewLever?'<span class="new">NEW</span>':''}</h3><div class="hint">${hint}</div>${body}`;
+  return d;
+}
+function stepperHTML(key,val){ return `<div class="stepper">
+  <button data-step="${key}" data-d="-1">−</button>
+  <span class="bignum" id="${key}Lbl">${val}</span>
+  <button data-step="${key}" data-d="1">+</button>
+  <span class="costnote" id="${key}Cost"></span></div>`; }
+function wireStepper(key,onChange,min,max,step){
+  document.querySelectorAll(`[data-step="${key}"]`).forEach(b=>{
+    b.addEventListener("click",()=>{ const cur=parseInt($(key+"Lbl").textContent,10)||0;
+      const v=clamp(cur+parseInt(b.dataset.d,10)*step,min,max); $(key+"Lbl").textContent=v; Sound.tick(); haptic(5); onChange(v); }); });
+  onChange(parseInt($(key+"Lbl").textContent,10)||0);
+}
+function updatePlan(){
+  if($("lemCost")){ const q=S.lemBuy; $("lemCost").textContent=q?("= "+dollars(q*lemUnitCost(q))+(q>=CONFIG.perishable.bulkQty?" 📉":"")):""; }
+  if($("cupCost")){ const q=S.cupBuy; $("cupCost").textContent=q?("= "+dollars(q*cupUnitCost(q))+(q>=50?" 📉":"")):""; }
+  const U=unlocks(S.mode,S.day); let spend=0;
+  if(U.buyLem) spend+=S.lemBuy*lemUnitCost(S.lemBuy);
+  if(U.buyCup) spend+=S.cupBuy*cupUnitCost(S.cupBuy);
+  if(U.sign&&S.signOn) spend+=CONFIG.sign.cost;
+  const broke=spend>cash();
+  $("planNote").innerHTML = broke ? `<span class="neg">Need ${dollars(spend)}, you have ${dollars(cash())}.</span>`
+    : (spend>0?`Outlay <b>${dollars(spend)}</b> · Wallet ${dollars(cash())}`:`Wallet ${dollars(cash())}`);
+  $("openBtn").disabled=broke;
+
+  const freeStock=(S.mode==="guided"&&S.day===1)?CONFIG.day1FreeStock:0;
+  const lemPlanned=(U.buyLem?S.lemBuy:0)+freeStock;
+  const cupsAvail=U.buyCup?(S.cupsStock+S.cupBuy):Infinity;
+  const capacity=Math.min(lemPlanned,cupsAvail);
+  const ch=$("capHint");
+  if(!U.buyLem) ch.innerHTML="";
+  else if(U.buyCup && cupsAvail<lemPlanned)
+    ch.innerHTML=`<span class="neg">⚠ Cups are your bottleneck — you can only serve ${capacity} (you have ${cupsAvail} cups). Buy more.</span>`;
+  else ch.innerHTML=`<span class="muted">🧺 Ready to serve up to <b style="color:var(--ink)">${capacity}</b> today${U.buyCup?` · ${cupsAvail} cups on hand`:``}.</span>`;
+}
+function renderStrip(){ const st=$("dayStrip"); st.innerHTML="";
+  for(let i=1;i<=CONFIG.totalDays;i++){ const d=document.createElement("div");
+    d.className="daydot"+(i<S.day?" done":"")+(i===S.day?" now":""); st.appendChild(d); } }
+
+/* ============================================================ OPEN → RESULTS (beat reveal) */
+let curR=null, beatState=0, beatTimer=null;
+function clearBeatTimer(){ if(beatTimer){ clearTimeout(beatTimer); beatTimer=null; } }
+function scheduleBeat(delay){ clearBeatTimer(); beatTimer=setTimeout(advanceBeat, delay); }
+$("openBtn").addEventListener("click",()=>{ if($("openBtn").disabled) return;
+  Sound.whoosh(); haptic(12); const r=simulate(); startResults(r); });
+
+function startResults(r){
+  curR=r; beatState=0;
+  $("deck").classList.add("hidden"); $("results").classList.remove("hidden");
+  $("resTitle").textContent=`Day ${r.day} — Results`;
+  // reset beats
+  clearBeatTimer();
+  $("beatMoney").classList.add("hidden"); $("beatVerdict").classList.add("hidden");
+  $("resFoot").classList.add("hidden"); $("tapHint").classList.add("hidden");
+  // prediction vs reality
+  const guess=r.predict, showed=r.demandTotal, diff=showed-guess, tol=Math.max(3,showed*0.2);
+  let picon,ptxt;
+  if(Math.abs(diff)<=tol){ picon="🎯"; ptxt="Nailed it!"; }
+  else if(diff>0){ picon="📈"; ptxt=`${diff} more than you thought`; }
+  else { picon="📉"; ptxt=`${-diff} fewer than you thought`; }
+  const pl=$("predictLine"); pl.classList.remove("hidden");
+  pl.innerHTML=`🔮 You guessed <b>${guess}</b> · <b>${showed}</b> showed up — ${picon} ${ptxt}`;
+  setTimeout(()=>{ Math.abs(diff)<=tol ? Sound.star(2) : Sound.pop(); }, 120);
+  // beat 0: the stand opens for business — animated scene
+  renderStand(r);
+  let cn=[]; if(r.sWalk) cn.push(`🙂 ${r.sWalk} new`); if(r.sReturn) cn.push(`🔁 ${r.sReturn} regulars`);
+  if(r.sDeal) cn.push(`💜 ${r.sDeal} from the deal`); cn.push(`= <b>${r.servedTotal}</b> sold`);
+  if(r.soldOut && r.servedTotal>0) cn.push(`<span class="neg">— sold out!</span>`);
+  $("crowdNote").innerHTML=cn.join(" · ");
+  window.scrollTo({top:0,behavior:"smooth"});
+  scheduleBeat(2200);   // give the open-for-business scene room to play
+}
+
+/* the animated "open for business" scene: stand + weather + customers */
+function renderStand(r){
+  const ev=r.event||EVENTS.none, scene=$("standScene");
+  const sky={none:"#bfe3ff",heat:"#ffdca6",fair:"#c9e8ff",hype:"#ddccff",rain:"#a9b4c2",rival:"#c4dcee"}[ev.key]||"#bfe3ff";
+  scene.style.background=`linear-gradient(180deg,${sky} 0%, ${sky} 70%, #eaf7e0 70%)`;
+
+  // sky element by weather
+  let skyEl="";
+  if(ev.key==="rain"){
+    skyEl=`<g><ellipse cx="312" cy="40" rx="34" ry="18" fill="#8893a3"/><ellipse cx="286" cy="48" rx="22" ry="14" fill="#9aa6b5"/><ellipse cx="338" cy="48" rx="22" ry="14" fill="#9aa6b5"/></g>
+      <g class="rain">${[270,295,320,345,300,325].map((x,i)=>`<line x1="${x}" y1="60" x2="${x-6}" y2="78" style="animation-delay:${i*90}ms"/>`).join("")}</g>`;
+  } else {
+    const big=ev.key==="heat";
+    skyEl=`<circle cx="338" cy="38" r="${big?26:20}" fill="${big?'#ff9e00':'#ffd23f'}"/>`+
+      (big?`<g class="shimmer" stroke="#ff9e00" stroke-width="3" stroke-linecap="round">${[0,1,2,3,4,5,6,7].map(k=>{const a=k*Math.PI/4;return `<line x1="${338+Math.cos(a)*30}" y1="${38+Math.sin(a)*30}" x2="${338+Math.cos(a)*38}" y2="${38+Math.sin(a)*38}"/>`;}).join("")}</g>`:"");
+  }
+  // rival stand in the background
+  const rival = ev.key==="rival" ? `<g opacity=".55"><rect x="20" y="96" width="70" height="10" fill="#c0606a"/><rect x="24" y="106" width="62" height="20" fill="#9a7b5a"/><rect x="30" y="126" width="6" height="18" fill="#7a5e42"/><rect x="74" y="126" width="6" height="18" fill="#7a5e42"/></g>` : "";
+
+  // awning stripes
+  let awn=""; for(let i=0;i<8;i++){ awn+=`<rect x="${110+i*22}" y="74" width="22" height="20" fill="${i%2?'#fff':'#e23b3b'}"/>`; }
+  let fringe=""; for(let i=0;i<8;i++){ fringe+=`<polygon points="${110+i*22},94 ${110+i*22+22},94 ${110+i*22+11},104" fill="${i%2?'#e23b3b':'#fff'}"/>`; }
+
+  const dealTag = r.dealOn ? `<g><rect x="150" y="48" width="100" height="20" rx="10" fill="#9a30e0"/><text x="200" y="63" text-anchor="middle" font-size="13" font-weight="900" fill="#fff">✨ DEAL ON</text></g>` : "";
+
+  scene.innerHTML = `
+    <svg viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
+      ${skyEl}${rival}
+      <!-- stand -->
+      <rect x="115" y="94" width="6" height="28" fill="#9a7b5a"/><rect x="279" y="94" width="6" height="28" fill="#9a7b5a"/>
+      ${awn}${fringe}
+      <text x="200" y="89" text-anchor="middle" font-size="15" font-weight="900" fill="#3a2d12">LEMONADE</text>
+      ${dealTag}
+      <!-- counter -->
+      <rect x="120" y="120" width="160" height="34" rx="4" fill="#c98a4e"/>
+      <rect x="120" y="120" width="160" height="9" fill="#b5743a"/>
+      <rect x="128" y="154" width="8" height="20" fill="#8a5e36"/><rect x="264" y="154" width="8" height="20" fill="#8a5e36"/>
+      <rect x="150" y="131" width="100" height="18" rx="4" fill="#fff7d6" stroke="#e0c878"/>
+      <text x="200" y="145" text-anchor="middle" font-size="13" font-weight="900" fill="#b5740a">${dollars(S.price)} / cup</text>
+      <!-- pitcher + you -->
+      <rect x="138" y="104" width="22" height="20" rx="4" fill="#ffd23f" stroke="#e0a800"/><rect x="158" y="109" width="6" height="6" fill="#ffd23f"/>
+      <text x="232" y="118" font-size="26">🧑‍🍳</text>
+      ${r.signOn?'<text x="96" y="150" font-size="24">🪧</text>':''}
+    </svg>
+    <div class="live" id="liveServe">🥤 0</div>`;
+
+  // floating decor for festive/viral days
+  if(ev.key==="fair"){ ["🎈","🎈","🎉"].forEach((e,i)=>addFloat(scene,e,[12,60,82][i],[20,12,30][i])); }
+  if(ev.key==="hype"){ ["📱","✨","✨"].forEach((e,i)=>addFloat(scene,e,[14,55,86][i],[24,14,34][i])); }
+
+  // customers walk up (capped, interleaved by type)
+  const q=[]; const w=Math.min(r.sWalk,7), d=Math.min(r.sDeal,7), rt=Math.min(r.sReturn,4);
+  for(let i=0;i<Math.max(w,d,rt);i++){ if(i<w)q.push("🙂"); if(i<d)q.push("💜"); if(i<rt)q.push("🔁"); }
+  q.slice(0,12).forEach((m,i)=>{ const c=document.createElement("div"); c.className="cust"; c.textContent=m;
+    c.style.left=(50+(i%4)*5)+"%"; c.style.animationDelay=(200+i*150)+"ms"; scene.appendChild(c); });
+  if(r.servedTotal===0){ const c=document.createElement("div"); c.className="cust"; c.textContent="🦗"; c.style.left="55%"; scene.appendChild(c); }
+
+  // live serve counter + cup pops + coins
+  const ls=$("liveServe");
+  animateNumber(ls,0,r.servedTotal,1900,{format:v=>`🥤 ${Math.round(v)}`});
+  Sound.whoosh();
+  const pops=Math.min(r.servedTotal,8);
+  for(let i=0;i<pops;i++){ setTimeout(()=>{
+    const p=document.createElement("div"); p.className="cuppop"; p.textContent=Math.random()<0.5?"🧋":"🥤";
+    p.style.left=(50+(i%3)*4)+"%"; p.style.bottom="46%"; scene.appendChild(p); setTimeout(()=>p.remove(),720);
+    Sound.coin();
+    const rc=scene.getBoundingClientRect(); FX.coins(rc.left+rc.width*0.55, rc.top+rc.height*0.42, 2);
+  }, 350+i*180); }
+}
+function addFloat(scene,emoji,leftPct,topPx){ const s=document.createElement("div"); s.className="balloon";
+  s.textContent=emoji; s.style.left=leftPct+"%"; s.style.top=topPx+"px"; s.style.animationDelay=(Math.random()*-3)+"s"; scene.appendChild(s); }
+// results auto-advance on a timer; a tap just skips ahead for the impatient
+$("results").addEventListener("click",(e)=>{ if(e.target.closest("#nextBtn")) return; advanceBeat(); });
+function advanceBeat(){
+  clearBeatTimer();
+  if(beatState===0){ beatState=1; revealMoney(); scheduleBeat(1900); }
+  else if(beatState===1){ beatState=2; revealVerdict(); }
+}
+function revealMoney(){
+  const r=curR; Sound.tap();
+  $("beatMoney").classList.remove("hidden");
+  // P&L rows staggered
+  const rows=[]; let i=0; const row=(l,v,cls)=>`<tr style="animation-delay:${(i++)*70}ms"><td>${l}</td><td class="${cls||''}">${v}</td></tr>`;
+  rows.push(row("Revenue",dollars(r.revenue),"pos"));
+  if(r.revDeal>0) rows.push(`<tr style="animation-delay:${(i++)*70}ms"><td colspan="2" class="muted" style="font-size:13px;border:none;padding-top:0;">incl. deal channel ${dollars(r.revDeal)} (after cut)</td></tr>`);
+  if(r.lemSpend>0) rows.push(row("Lemonade bought","−"+dollars(r.lemSpend),"neg"));
+  if(r.cupSpend>0) rows.push(row("Cups bought","−"+dollars(r.cupSpend),"neg"));
+  if(r.signSpend>0) rows.push(row("Sign (fixed cost)","−"+dollars(r.signSpend),"neg"));
+  if(r.spoilCost>0) rows.push(row(`🗑️ Spoiled (${r.lemSpoiledUnits} wasted)`,"−"+dollars(r.spoilCost),"neg"));
+  if(r.cupsLeft>0) rows.push(row("Cups kept for tomorrow",r.cupsLeft+" in stock","info"));
+  $("plTable").innerHTML=rows.join("");
+  // hero profit count-up
+  const hp=$("heroProfit"); hp.className="hp "+(r.profit>=0?"pos":"neg");
+  setTimeout(()=>{
+    animateNumber(hp,0,r.profit,900,{format:dollars,tick:true,done:()=>{
+      const c=elCenter(hp);
+      if(r.profit>0){ Sound.cash(); FX.coins(c.x,c.y,Math.min(6+Math.round(r.profit/12),22)); }
+      else { Sound.womp(); $("beatMoney").classList.add("shake"); }
+      // update HUD profit live
+      $("hudProfit").textContent=dollars(S.cumProfit); $("hudProfit").className="val "+(S.cumProfit<0?"neg":"");
+      $("hudCash").textContent=dollars(cash());
+    }});
+  }, rows.length*70+120);
+}
+function revealVerdict(){
+  const r=curR; Sound.tap();
+  $("beatVerdict").classList.remove("hidden");
+  $("tapHint").classList.add("hidden"); $("resFoot").classList.remove("hidden");
+  // stars
+  const n = r.bankrupt? 0 : (r.profit>=CONFIG.stars.three?3 : r.profit>=CONFIG.stars.two?2 : r.profit>0?1:0);
+  const sd=$("dayStars"); sd.innerHTML="";
+  for(let k=0;k<3;k++){ const s=document.createElement("span"); s.className="s"; s.textContent="⭐"; sd.appendChild(s); }
+  [...sd.children].forEach((s,k)=>{ if(k<n) setTimeout(()=>{ s.classList.add("on"); Sound.star(k); haptic(10); }, 120+k*260); });
+  if(n===0){ setTimeout(()=>Sound.womp(),120); }
+  // streak
+  const stg=$("streakTag");
+  if(S.streak>=2){ stg.classList.remove("hidden"); stg.textContent=`🔥 ${S.streak}-day profit streak!`; }
+  else stg.classList.add("hidden");
+  // mentor
+  const m=mentorLine(r); $("mentor").style.display=m?"flex":"none"; $("mentorMsg").innerHTML=m||"";
+  // celebrate big
+  if(n===3){ setTimeout(()=>{ FX.confetti(); Sound.fanfare(); haptic([10,40,10]); }, 900); }
+  $("nextBtn").textContent=(S.day>=CONFIG.totalDays||S.bankrupt)?"See your week →":"Next day →";
+}
+function mentorLine(r){
+  if(S.bankrupt) return "💸 Broke! Costs hit whether you sell or not.";
+  if(r.U.buyCup && r.servedTotal===0 && (r.lemBought>0||r.freeStock>0)) return "🥤 No cups = no sales. They never spoil — buy a big batch.";
+  if(r.spoilCost>=8) return "🗑️ You overbought. The extra spoiled — cash in the trash.";
+  if(r.soldOut && r.servedTotal>0) return "🔥 Sold out! Money left on the table — stock more.";
+  if(r.dealOn && r.day===CONFIG.deal.unlockDay) return `😬 Stung, right? Wait for it… watch days ${r.day+1}–${CONFIG.totalDays}.`;
+  if(r.servedTotal<8 && S.price>=3.5) return "🦗 Too pricey — most walked past. Drop it.";
+  if(r.signOn && r.revenue<r.signSpend*3) return "🪧 Sign barely paid for itself today.";
+  if(r.cupBought>=50) return "📦 Smart — bulk cups are cheap AND never spoil.";
+  if(r.profit>=CONFIG.stars.three) return "🤑 Huge day. Good price, real margin.";
+  if(r.sReturn>=6) return "🔁 Look — regulars are coming back for you.";
+  return "";
+}
+
+/* ============================================================ NEXT / END */
+$("nextBtn").addEventListener("click",(e)=>{ e.stopPropagation(); clearBeatTimer(); $("beatMoney").classList.remove("shake");
+  Sound.tap(); haptic(8);
+  if(S.day>=CONFIG.totalDays||S.bankrupt){ endGame(); return; }
+  S.day++; renderDeck(); });
+
+function endGame(){
+  show("end");
+  const won=!S.bankrupt && S.cumProfit>=CONFIG.targetProfit;
+  $("endVerdict").textContent=S.bankrupt?"💀 Out of cash":won?"🎉 Beat the target!":"✅ Week complete";
+  const es=$("endScore"); es.className="scorebig "+(S.cumProfit>=0?"pos":"neg");
+  animateNumber(es,0,S.cumProfit,1300,{format:dollars,tick:true,done:()=>{
+    const c=elCenter(es);
+    if(won){ Sound.fanfare(); FX.confetti(c.x,c.y,140); haptic([10,40,10,40,10]); }
+    else if(S.cumProfit>0){ Sound.cash(); FX.coins(c.x,c.y,20); }
+    else { Sound.womp(); }
+  }});
+  $("endSub").innerHTML=S.bankrupt?`Went broke on day ${S.day}. Costs don't wait for sales.`
+    : won?`Cleared the ${dollars(CONFIG.targetProfit)} target. That's an operator's week.`
+    : `Target was ${dollars(CONFIG.targetProfit)}. Run it back and squeeze the waste out.`;
+  // operator IQ stars (comprehension/20)
+  const c=comprehension(S.log)||{score:0};
+  const iq=Math.max(1,Math.round(c.score/20));
+  $("iqStars").textContent="⭐".repeat(iq)+"☆".repeat(5-iq);
+  $("iqLabel").textContent=({1:"Day one. Keep playing.",2:"Getting it.",3:"Solid instincts.",4:"Sharp operator.",5:"You think like a merchant. 🧠"})[iq]||"";
+  $("codeLine").innerHTML=`🎟️ Challenge code: <b>${seedToCode(S.seed)}</b> — share it so a friend plays your exact week.`;
+  renderReveal(); renderRecap(); saveRecord(S.name,S.cumProfit); renderLeaderboard();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function renderReveal(){
+  const C=$("revealCards"); C.innerHTML="";
+  if(S.dealDirectCount<=0){
+    C.innerHTML=`<div class="rc"><div>You never listed a deal. The platform was offering a flood of customers at a discount — next run, say yes on day ${CONFIG.deal.unlockDay} and watch what those customers do after.</div></div>`;
+    $("revealMsg").innerHTML="The whole point of Stage 1 hides in that deal button. Replay and take it. 👀"; return;
+  }
+  const directNet=S.dealDirectRev-S.dealDirectCogs, repeatNet=S.dealRepeatRev-S.dealRepeatCogs, total=directNet+repeatNet;
+  C.innerHTML+=`<div class="rc brutal"><div class="muted" style="font-weight:800;">What the deal looked like that day</div>
+    <div class="big neg">${dollars(directNet)}</div>
+    <div>${S.dealDirectCount} discounted cups. Barely cleared the cost of the lemonade. Felt like a mistake, right?</div></div>`;
+  C.innerHTML+=`<div class="rc win"><div class="muted" style="font-weight:800;">What those customers did next</div>
+    <div class="big pos">${dollars(repeatNet)}</div>
+    <div>${S.dealRepeatCount} of them <b>came back</b> and paid <b>full price</b> — at almost no extra cost to you.</div></div>`;
+  C.innerHTML+=`<div class="rc" style="border-color:var(--ink);"><div class="muted" style="font-weight:800;">True value of saying yes</div>
+    <div class="big ${total>=0?'pos':'neg'}">${dollars(total)}</div></div>`;
+  $("revealMsg").innerHTML = total>=0
+    ? `The discount wasn't the price of a cup — it was the price of <b>winning a customer</b>. You filled cups that would've sat empty, and some became regulars.<br><br><b>Hold that feeling.</b> An empty 7pm table or an unbooked spa slot <i>is</i> spoiled lemonade — and the same move turns it into cash plus future customers.`
+    : `You took the deal but didn't turn enough into regulars — stock enough to actually <i>serve</i> the deal crowd next time, so more come back.`;
+}
+
+/* ============================================================ REPORT CARD
+   Grades the player's ACTUAL per-day choices against the 5 fundamentals.
+   status: "got" | "partial" | "missed". Lines cite their real numbers. */
+function recap(){
+  const log=S.log, hist=S.history, c=comprehension(log)||{}, items=[];
+
+  // 1 — Revenue = price × volume
+  (function(){
+    const prices=[...new Set(log.map(d=>d.price))];
+    const bestRev=hist.reduce((a,b)=>b.revenue>a.revenue?b:a, hist[0]);
+    const bestPrice=(log.find(x=>x.day===bestRev.day)||{}).price;
+    const totalCups=hist.reduce((s,h)=>s+h.servedTotal,0);
+    let status,line;
+    if(prices.length>=2){ status="got";
+      line=`You moved price between ${dollars(Math.min(...prices))} and ${dollars(Math.max(...prices))}. Day ${bestRev.day} at ${dollars(bestPrice)} pulled your best take (${dollars(bestRev.revenue)}). Charge more and fewer buy — that seesaw <b>is</b> revenue.`;
+    } else { status="partial";
+      line=`You held ${dollars(prices[0])} all week and moved ${totalCups} cups. Revenue = price × volume — nudge the price next run to feel the trade-off.`; }
+    items.push({emoji:"💰",name:"Revenue = price × volume",status,line});
+  })();
+
+  // 2 — Cost & margin (buy to match demand; don't waste)
+  (function(){
+    const buyDays=log.filter(d=>d.lemBought>0);
+    const units=buyDays.reduce((s,d)=>s+d.spoiledUnits,0);
+    const cost=buyDays.reduce((s,d)=>s+d.spoilCost,0);
+    const rate=c.spoilRatePct||0, first=c.firstDayNoOverbuy;
+    let status,line;
+    if(!buyDays.length){ status="partial"; line=`You didn't get to the buying days — costs are where margin lives. Play a full week to feel it.`; }
+    else if(rate<=15){ status="got";
+      line= first?`You tightened up by day ${first} — just ${rate}% of your lemonade spoiled. Buying to match the crowd is margin discipline.`
+                 :`Only ${rate}% of your lemonade spoiled all week. Tight buying protects every cent of margin.`; }
+    else if(rate<=30){ status="partial";
+      line=`${units} cups (${dollars(cost)}) spoiled — ${rate}% of what you bought. Each cup costs you whether it sells or not; buy closer to demand.`; }
+    else { status="missed";
+      line=`${units} cups (${dollars(cost)}) went in the trash — ${rate}% waste. That's pure margin gone. Match your buying to the crowd.`; }
+    items.push({emoji:"🧮",name:"Cost & margin",status,line});
+  })();
+
+  // 3 — Fixed costs & break-even (the sign)
+  (function(){
+    const signDays=log.filter(d=>d.sign);
+    let status,line;
+    if(!signDays.length){ status="missed";
+      line=`You never ran the sign. It's a fixed cost — ${dollars(CONFIG.sign.cost)} whether 1 person shows or 50. Worth testing: it only pays when the extra traffic covers it.`; }
+    else { const good=signDays.filter(d=>d.profit>0).length;
+      if(good===signDays.length){ status="got";
+        line=`You ran the sign ${signDays.length} day${signDays.length>1?"s":""} and the extra traffic cleared its ${dollars(CONFIG.sign.cost)} every time. That's beating your break-even.`; }
+      else { status="partial";
+        line=`You ran the sign ${signDays.length} days, but ${signDays.length-good} didn't pay for itself. Fixed costs hit no matter what — only spend them when traffic covers them.`; } }
+    items.push({emoji:"🪧",name:"Fixed costs & break-even",status,line});
+  })();
+
+  // 4 — The hook (discount hard to pull a crowd)
+  (function(){
+    let status,line;
+    if(S.dealDirectCount>0){ status="got";
+      const net=S.dealDirectRev-S.dealDirectCogs;
+      line=`You listed a deal and took the hit — ${S.dealDirectCount} cups at a deep discount, the channel itself netting ${dollars(net)}. Discounting hard to pull a flood of customers: that's the hook.`; }
+    else { status="missed";
+      line=`You never listed a deal. The platform offered a wave of customers for a steep discount — that's the hook, and the whole twist lives behind that button.`; }
+    items.push({emoji:"✨",name:"The deal hook",status,line});
+  })();
+
+  // 5 — Lifetime value (the repeat payoff)
+  (function(){
+    let status,line;
+    if(S.dealDirectCount<=0){ status="missed";
+      line=`No deal means no discounted customers to win back — so the payoff stayed hidden. Take the deal next run and watch days after.`; }
+    else { const directNet=S.dealDirectRev-S.dealDirectCogs, total=directNet+(S.dealRepeatRev-S.dealRepeatCogs);
+      if(S.dealRepeatCount>0 && total>=0){ status="got";
+        line=`${S.dealRepeatCount} of your deal customers came back at full price — turning a ${dollars(directNet)} 'loss' into ${dollars(total)}. The first sale buys the customer; the repeats are the profit.`; }
+      else { status="partial";
+        line=`You took the deal but few came back (${S.dealRepeatCount}). Stock enough to actually serve the deal crowd, and more become regulars — that's where the money is.`; } }
+    items.push({emoji:"🔁",name:"Lifetime value",status,line});
+  })();
+
+  return items;
+}
+function renderRecap(){
+  const items=recap(); const got=items.filter(i=>i.status==="got").length;
+  $("recapHead").textContent = got>=5 ? "You locked in all 5 fundamentals. 🧠"
+    : got===0 ? "Here's what to chase next run:" : `You locked in ${got} of 5 fundamentals.`;
+  $("recapBody").innerHTML = items.map((it,i)=>{
+    const badge = it.status==="got" ? '<span class="rb got">✓ got it</span>'
+      : it.status==="partial" ? '<span class="rb part">~ getting there</span>'
+      : '<span class="rb miss">○ try next time</span>';
+    return `<div class="recapRow" style="animation-delay:${i*90}ms">
+      <div class="rIcon">${it.emoji}</div>
+      <div class="rMain"><div class="rTop"><span class="rName">${it.name}</span>${badge}</div>
+      <div class="rLine">${it.line}</div></div></div>`;
+  }).join("");
+}
+
+/* ============================================================ RECORDS */
+const LB_KEY="theStand.records.v1";
+function loadRecords(){ try{ return JSON.parse(Store.get(LB_KEY))||[]; }catch(e){ return []; } }
+function saveRecord(name,profit){
+  const recs=loadRecords();
+  const entry={name,profit:Math.round(profit*100)/100,mode:S.mode,code:seedToCode(S.seed),when:new Date().toISOString().slice(0,10)};
+  S._lastEntry=entry; recs.push(entry); recs.sort((a,b)=>b.profit-a.profit);
+  Store.set(LB_KEY,JSON.stringify(recs.slice(0,25)));
+}
+function renderLeaderboard(){
+  const recs=loadRecords(); const rows=["<tr><th>#</th><th>Name</th><th>Mode</th><th>Profit</th></tr>"];
+  recs.slice(0,10).forEach((r,i)=>{ const you=S._lastEntry&&r.name===S._lastEntry.name&&Math.abs(r.profit-S._lastEntry.profit)<0.005;
+    rows.push(`<tr class="${you?'you':''}"><td>${i+1}</td><td>${escapeHtml(r.name)}</td><td>${r.mode||'-'}</td><td>${dollars(r.profit)}</td></tr>`); });
+  $("lbTable").innerHTML=rows.join("");
+}
+$("againBtn").addEventListener("click",()=>{ Sound.tap(); show("start"); renderBest(); $("nameInput").value=S?S.name:""; });
+
+/* ============================================================ SHARE CARD */
+function drawShareCard(){
+  const cv=$("shareCanvas"), x=cv.getContext("2d"), W=cv.width, H=cv.height;
+  const g=x.createLinearGradient(0,0,W,H); g.addColorStop(0,"#fff3b0"); g.addColorStop(.55,"#ffd06b"); g.addColorStop(1,"#ffb347");
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  // sprinkle
+  x.globalAlpha=.16; const ic=["🍋","🪙","💵","🧋","✨"];
+  for(let i=0;i<14;i++){ x.font=(28+(i*7)%34)+"px serif"; x.fillText(ic[i%ic.length], (i*97)%W, ((i*131)%H)); }
+  x.globalAlpha=1;
+  x.textAlign="center";
+  x.font="56px serif"; x.fillText("🍋🧋",W/2,86);
+  x.fillStyle="#3a2d12"; x.font="900 42px -apple-system,Arial"; x.fillText("THE STAND",W/2,150);
+  x.font="700 20px -apple-system,Arial"; x.fillStyle="#6a5a2a"; x.fillText(`${(S&&S.name)||"You"}'s week`,W/2,186);
+  // score
+  const won=S&&!S.bankrupt&&S.cumProfit>=CONFIG.targetProfit;
+  x.fillStyle=won?"#16a34a":(S&&S.cumProfit<0?"#e23b3b":"#3a2d12");
+  x.font="900 120px -apple-system,Arial"; x.fillText(dollars(S?S.cumProfit:0),W/2,330);
+  x.fillStyle="#6a5a2a"; x.font="800 22px -apple-system,Arial"; x.fillText("total profit",W/2,366);
+  // IQ stars
+  const c=comprehension(S?S.log:null)||{score:0}; const iq=Math.max(1,Math.round(c.score/20));
+  x.font="40px serif"; x.fillText("⭐".repeat(iq)+"☆".repeat(5-iq),W/2,440);
+  x.fillStyle="#3a2d12"; x.font="800 22px -apple-system,Arial"; x.fillText("Operator IQ",W/2,476);
+  // verdict banner
+  x.fillStyle=won?"#16a34a":"#9a30e0"; const bw=400,bh=64,bx=(W-bw)/2,by=520;
+  roundRect(x,bx,by,bw,bh,32); x.fill();
+  x.fillStyle="#fff"; x.font="900 26px -apple-system,Arial";
+  x.fillText(won?"🎉 Beat the target":"can you beat me? 👀",W/2,by+42);
+  x.fillStyle="#9a30e0"; x.font="800 18px -apple-system,Arial"; x.fillText("challenge code: "+seedToCode(S.seed),W/2,H-52);
+  x.fillStyle="#6a5a2a"; x.font="700 18px -apple-system,Arial"; x.fillText("a week-1 unit-economics game",W/2,H-26);
+}
+function roundRect(x,a,b,w,h,r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }
+$("shareBtn").addEventListener("click",()=>{ Sound.pop(); drawShareCard(); $("sharePanel").classList.remove("hidden"); });
+$("shareClose").addEventListener("click",()=>$("sharePanel").classList.add("hidden"));
+$("shareDl").addEventListener("click",()=>{ const a=document.createElement("a");
+  a.href=$("shareCanvas").toDataURL("image/png"); a.download=`the-stand_${((S&&S.name)||"week").replace(/\W+/g,"-")}.png`; a.click(); });
+$("shareDo").addEventListener("click",async()=>{
+  const cv=$("shareCanvas");
+  try{
+    const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
+    const file=new File([blob],"the-stand.png",{type:"image/png"});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:"The Stand", text:`I made ${dollars(S.cumProfit)} at The Stand 🍋 — beat me!`});
+    } else { $("shareDl").click(); }
+  }catch(e){ /* user cancelled or unsupported */ }
+});
+
+/* ============================================================ MUTE */
+function syncMute(){ $("muteBtn").textContent=Sound.isMuted()?"🔇":"🔊"; }
+$("muteBtn").addEventListener("click",()=>{ Sound.toggle(); syncMute(); if(!Sound.isMuted()) Sound.coin(); });
+syncMute();
+
+/* ============================================================ FACILITATOR */
+$("facBtn").addEventListener("click",()=>{ renderFac(); $("facPanel").classList.remove("hidden"); });
+$("facClose").addEventListener("click",()=>$("facPanel").classList.add("hidden"));
+$("facWipe").addEventListener("click",()=>{ if(confirm("Clear all saved records on this machine?")){ Store.remove(LB_KEY); renderFac(); } });
+$("facExport").addEventListener("click",()=>{
+  const data={ player:S?S.name:null, mode:S?S.mode:null, comprehension:S?comprehension(S.log):null, perDay:S?S.log:null, records:loadRecords() };
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+  a.download=`the-stand_${((S&&S.name)||"session").replace(/\W+/g,"-")}.json`; a.click();
+});
+function renderFac(){
+  const body=$("facBody");
+  if(!S||!S.log.length){ body.innerHTML=`<div class="muted">No play data yet this session. Finish a run, then reopen.</div>`; return; }
+  const c=comprehension(S.log);
+  const fc=S.log.filter(d=>d.predict!=null);
+  let hits=0; fc.forEach(d=>{ if(d.demand>0 && Math.abs(d.predict-d.demand)<=Math.max(3,d.demand*0.2)) hits++; });
+  const forecastPct=fc.length?Math.round(hits/fc.length*100):0;
+  let html=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <div><div class="muted" style="font-size:12px;font-weight:900;">COMPREHENSION</div>
+    <div class="scorering ${c.score>=70?'pos':c.score>=40?'info':'neg'}">${c.score}<span style="font-size:18px;">/100</span></div></div>
+    <div style="font-size:13px;line-height:1.7;">
+      Forecast accuracy: <b class="${forecastPct>=50?'flag-good':'flag-bad'}">${forecastPct}%</b> of days within 20%<br>
+      Spoilage rate: <b class="${c.spoilRatePct<=15?'flag-good':'flag-bad'}">${c.spoilRatePct}%</b><br>
+      First clean day: <b>${c.firstDayNoOverbuy?('day '+c.firstDayNoOverbuy):'never'}</b><br>
+      First bulk durables: <b>${c.firstDayBulkDurable?('day '+c.firstDayBulkDurable):'never'}</b><br>
+      Perishable-discount trap: <b class="${c.bulkPerishableWaste?'flag-bad':'flag-good'}">${c.bulkPerishableWaste?'yes':'no'}</b><br>
+      Took deal on unlock: <b class="${c.tookDealOnUnlock?'flag-good':'flag-bad'}">${c.tookDealOnUnlock?'yes':'no'}</b> ·
+      stocked for it: <b class="${c.dealServedWell?'flag-good':'flag-bad'}">${c.dealServedWell?'yes':'no'}</b>
+    </div></div>`;
+  html+=`<table class="ftable"><tr><th>Day</th><th>Event</th><th>Price</th><th>Guess→Came</th><th>Lem</th><th>Cup</th><th>Bulk</th><th>Sign</th><th>Deal</th><th>Sold</th><th>Spoil</th><th>Profit</th></tr>`;
+  S.log.forEach(d=>{ const evE=(EVENTS[d.event]||{}).emoji||'';
+    const fcHit = d.demand>0 && Math.abs(d.predict-d.demand)<=Math.max(3,d.demand*0.2);
+    html+=`<tr><td>${d.day}</td><td>${evE}</td><td>${dollars(d.price)}</td>
+    <td class="${fcHit?'flag-good':''}">${d.predict}→${d.demand}</td>
+    <td>${d.lemBought}${d.freeStock?`<span class="muted">+${d.freeStock}f</span>`:''}</td><td>${d.cupBought}</td>
+    <td>${d.bulkLem?'<span class="flag-bad">L</span>':''}${d.bulkCup?'<span class="flag-good">C</span>':''}</td>
+    <td>${d.sign?'✓':''}</td><td>${d.deal?'✓':''}</td>
+    <td>${d.served}${d.soldOut?'<span class="flag-bad">!</span>':''}</td>
+    <td class="${d.spoiledUnits?'flag-bad':''}">${d.spoiledUnits||''}</td>
+    <td class="${d.profit>=0?'flag-good':'flag-bad'}">${dollars(d.profit)}</td></tr>`; });
+  html+=`</table><div class="muted" style="font-size:12px;margin-top:6px;">
+    <span class="flag-bad">L</span>=bulk perishable (trap) · <span class="flag-good">C</span>=bulk durable (smart) · <b>f</b>=free starter stock</div>`;
+  body.innerHTML=html;
+}
+
+/* ============================================================ INIT */
+renderBest();
+</script>
+</body>
+</html>
