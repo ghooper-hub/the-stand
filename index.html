@@ -133,12 +133,16 @@
   .econBox .er{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
   .econBox .be{margin-top:7px;padding-top:8px;border-top:1.5px dashed var(--line);}
   .econBox .muted{font-weight:600;}
-  /* end-of-week P&L KPI strip */
-  .kpiStrip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px;}
-  .kpiStrip .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 8px;box-shadow:0 6px 14px rgba(120,80,10,.1);}
-  .kpiStrip .kpi .kl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);}
-  .kpiStrip .kpi .kv{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums;margin-top:2px;}
-  @media(max-width:560px){ .kpiStrip{grid-template-columns:repeat(2,1fr);} }
+  /* end-of-week business scorecard */
+  .scoreGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .scoreGrid .sc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:0 6px 14px rgba(120,80,10,.08);}
+  .scoreGrid .sc .scl{font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);}
+  .scoreGrid .sc .scv{font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.1;margin:3px 0 2px;}
+  .scoreGrid .sc .scs{font-size:12px;color:var(--ink2);font-weight:600;line-height:1.35;}
+  .custEcon{margin-top:12px;border:2px solid #e6d2fb;background:linear-gradient(160deg,#faf2ff,#fff);border-radius:14px;padding:14px;}
+  .custEcon .cel{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--grape2);}
+  .custEcon .cev{font-size:30px;font-weight:900;font-variant-numeric:tabular-nums;margin:2px 0 6px;line-height:1;}
+  .custEcon .ced{font-size:13.5px;color:var(--ink2);font-weight:600;line-height:1.55;}
   /* random-event banner */
   .eventBanner{display:flex;gap:11px;align-items:center;border-radius:14px;padding:12px 14px;margin-bottom:14px;animation:rise .4s ease both;}
   .eventBanner>div{flex:1;min-width:0;}
@@ -344,7 +348,6 @@
       <h2 style="font-size:21px;margin:14px 0 2px;">Your week at the stand</h2>
       <div class="scorebig" id="endScore">$0</div>
       <div class="muted" id="endSub" style="font-weight:700;"></div>
-      <div id="endKpi" class="kpiStrip"></div>
       <div style="margin-top:14px;">
         <div class="crowdLbl">Operator IQ</div>
         <div class="iqstars" id="iqStars"></div>
@@ -355,6 +358,14 @@
         <button id="againBtn" class="btn ghost">↻ Play again</button>
       </div>
       <div class="muted" id="codeLine" style="margin-top:14px;font-size:13px;font-weight:700;"></div>
+    </div>
+
+    <div class="card" id="scorecard" style="margin-top:14px;">
+      <h2 style="font-size:22px;">📊 Your business scorecard</h2>
+      <div class="muted" style="margin-bottom:14px;font-weight:600;">The numbers every owner watches — not just the cash in the till.</div>
+      <div id="scoreGrid" class="scoreGrid"></div>
+      <div id="custEcon" class="custEcon"></div>
+      <div class="bubble" style="margin-top:12px;"><div class="face">🕵️</div><div class="msg" id="leakMsg"></div></div>
     </div>
 
     <div class="card reveal" id="reveal" style="margin-top:14px;">
@@ -484,7 +495,7 @@ function codeToSeed(c){ const n=parseInt(String(c).trim().toLowerCase(),36); ret
 /* ============================================================ STATE */
 let S=null;
 function newGame(name, mode, seed){
-  return { name:name||"You", mode, day:1, cumProfit:0, cupsStock:0,
+  return { name:name||"You", mode, day:1, cumProfit:0, cupsStock:0, cupInvValue:0,
     seed: (seed!=null ? (seed>>>0) : Math.floor(Math.random()*2100000000)),
     repeatWalk:0, repeatDeal:0, streak:0, history:[], log:[],
     dealDirectRev:0, dealDirectCogs:0, dealDirectCount:0,
@@ -540,8 +551,21 @@ function simulate(){
   const lemSpoiledUnits = Math.max(0, lemAvail - lemUsed);
   const paidSpoiledUnits = Math.max(0, lemBought - paidLemUsed);
   const spoilCost = paidSpoiledUnits * lemUnitCost(lemBought);
+  const cogsLem = paidLemUsed * lemUnitCost(lemBought);   // free starter stock costs $0
 
-  if(U.buyCup){ S.cupsStock = Math.max(0, S.cupsStock + cupBought - servedTotal); }
+  // cups: weighted-average inventory cost, so COGS reflects the cups actually sold
+  // (not the ones still sitting in stock for tomorrow)
+  let cogsCup = 0;
+  if(U.buyCup){
+    S.cupInvValue += cupSpend;
+    const totCups = S.cupsStock + cupBought;
+    const avgCup = totCups>0 ? S.cupInvValue/totCups : 0;
+    const cupsUsed = Math.min(servedTotal, totCups);
+    cogsCup = cupsUsed * avgCup;
+    S.cupInvValue = Math.max(0, S.cupInvValue - cogsCup);
+    S.cupsStock = Math.max(0, totCups - servedTotal);
+  }
+  const cogs = cogsLem + cogsCup;
   const profit = revenue - spend;
 
   const margCost = CONFIG.perishable.unit + (U.buyCup?CONFIG.durable.unit:0);
@@ -571,7 +595,7 @@ function simulate(){
   const res={ day, traffic, event:ev, returningDemand, walkDemand, dealDemand,
     demandTotal: returningDemand+walkDemand+dealDemand, predict:S.predict, price:S.price,
     sReturn, sWalk, sDeal, servedTotal, revenue, revFull, revDeal,
-    lemSpend, cupSpend, signSpend, spend,
+    lemSpend, cupSpend, signSpend, spend, cogs,
     lemSpoiledUnits:paidSpoiledUnits, spoilCost,
     cupsLeft:U.buyCup?S.cupsStock:0, cupBought, lemBought, freeStock,
     profit, signOn, dealOn, U, soldOut: servedTotal<(returningDemand+walkDemand+dealDemand) };
@@ -1084,26 +1108,79 @@ function endGame(){
   const iq=Math.max(1,Math.round(c.score/20));
   $("iqStars").textContent="⭐".repeat(iq)+"☆".repeat(5-iq);
   $("iqLabel").textContent=({1:"Day one. Keep playing.",2:"Getting it.",3:"Solid instincts.",4:"Sharp operator.",5:"You think like a merchant. 🧠"})[iq]||"";
-  // weekly P&L — the four numbers a real operator watches
-  (function(){
-    const h=S.history;
-    const rev=h.reduce((s,x)=>s+x.revenue,0);
-    const cost=h.reduce((s,x)=>s+x.spend,0);
-    const cups=h.reduce((s,x)=>s+x.servedTotal,0);
-    const netMarginPct=rev>0?Math.round((rev-cost)/rev*100):0;
-    const kpi=(l,v,cls)=>`<div class="kpi"><div class="kl">${l}</div><div class="kv ${cls||''}">${v}</div></div>`;
-    $("endKpi").innerHTML=
-      kpi("Revenue",dollars(rev),"pos")+
-      kpi("Costs","−"+dollars(cost),"neg")+
-      kpi("Cups sold",cups)+
-      kpi("Net margin",netMarginPct+"%",netMarginPct>=0?"pos":"neg");
-  })();
+  renderScorecard();
   $("codeLine").innerHTML = won
     ? "You ran a profitable week. 🎉 Now do it again on a tighter margin."
     : "Play again — squeeze the waste, watch your margin, hit the goal. 📈";
   renderReveal(); renderTransfer(); renderRecap();
   saveRecord(S.name,S.cumProfit); postRemote(S._lastEntry); renderLeaderboard();
   window.scrollTo({top:0,behavior:"smooth"});
+}
+
+/* ============================================================ BUSINESS SCORECARD
+   The KPIs a real operator lives by, computed from the player's actual week.
+   Gross margin = revenue − cost of goods SOLD (waste & marketing broken out
+   separately), so net margin sits below it — the real, teachable gap. */
+function renderScorecard(){
+  const h=S.history; if(!h||!h.length) return;
+  const revenue   = h.reduce((s,x)=>s+x.revenue,0);
+  const cogs      = h.reduce((s,x)=>s+(x.cogs||0),0);
+  const grossProfit = revenue - cogs;
+  const grossPct  = revenue>0 ? Math.round(grossProfit/revenue*100) : 0;
+  const net       = S.cumProfit;
+  const netPct    = revenue>0 ? Math.round(net/revenue*100) : 0;
+  const cups      = h.reduce((s,x)=>s+x.servedTotal,0);
+  const avgSale   = cups>0 ? revenue/cups : 0;
+  const lemBought = h.reduce((s,x)=>s+x.lemBought,0);
+  const spoiled   = h.reduce((s,x)=>s+x.lemSpoiledUnits,0);
+  const spoilCost = h.reduce((s,x)=>s+x.spoilCost,0);
+  const wastePct  = lemBought>0 ? Math.round(spoiled/lemBought*100) : 0;
+  const endCash   = cash();
+  const mkt       = h.reduce((s,x)=>s+x.signSpend,0);
+
+  const tile=(l,v,sub,cls)=>`<div class="sc"><div class="scl">${l}</div>
+    <div class="scv ${cls||''}">${v}</div><div class="scs">${sub}</div></div>`;
+  $("scoreGrid").innerHTML=
+    tile("Revenue",dollars(revenue),"total money taken in","pos")+
+    tile("Gross margin",grossPct+"%",dollars(grossProfit)+" after cost of goods",grossPct>=50?"pos":"neg")+
+    tile("Net profit",dollars(net),"what you actually kept",net>=0?"pos":"neg")+
+    tile("Net margin",netPct+"%","profit per $1 of sales",netPct>=20?"pos":netPct>=0?"":"neg")+
+    tile("Cups sold",cups,dollars(avgSale)+" average sale")+
+    tile("Waste rate",wastePct+"%",dollars(spoilCost)+" of stock spoiled",wastePct<=15?"pos":wastePct<=30?"":"neg")+
+    tile("Ending cash",dollars(endCash),"your runway to keep operating",endCash>=CONFIG.startingCash?"pos":"neg")+
+    tile("Marketing spend",dollars(mkt),mkt>0?"fixed cost spent on signage":"you never advertised");
+
+  // Customer economics: cost to acquire a deal customer vs. what they paid back
+  const firstNet = S.dealDirectRev - S.dealDirectCogs;
+  const repeatNet= S.dealRepeatRev - S.dealRepeatCogs;
+  const ltv      = firstNet + repeatNet;
+  const ce=$("custEcon");
+  if(S.dealDirectCount>0){
+    ce.innerHTML=`<div class="cel">Customer economics — CAC → LTV</div>
+      <div class="cev ${ltv>=0?'pos':'neg'}">${dollars(ltv)}</div>
+      <div class="ced">You acquired <b>${S.dealDirectCount}</b> customers for about <b>${dollars(firstNet)}</b> on their first visit, then earned <b>${dollars(repeatNet)}</b> from the <b>${S.dealRepeatCount}</b> who came back at full price. ${ltv>=0?"The repeats turned that discount into profit — that's lifetime value at work.":"The repeats didn't yet cover the discount — serve the promo crowd better so more come back."}</div>`;
+  } else {
+    ce.innerHTML=`<div class="cel">Customer economics — CAC → LTV</div>
+      <div class="cev">—</div>
+      <div class="ced">You never ran the deal, so you never acquired customers to win back. A discount is the <b>cost of acquiring a customer</b>; the repeats at full price are the payoff. Take the deal next run and watch the days after.</div>`;
+  }
+
+  // Find-your-leak: name the single biggest weakness this week
+  const leaks=[];
+  if(grossPct<50)  leaks.push({k:"a thin margin",                              sev:60-grossPct});
+  if(wastePct>15)  leaks.push({k:"wasted stock",                               sev:wastePct});
+  if(S.dealDirectCount>0 && S.dealRepeatCount < S.dealDirectCount*0.3)
+                   leaks.push({k:"customers you never turned into regulars",   sev:45});
+  if(S.dealDirectCount<=0)
+                   leaks.push({k:"never using the deal to acquire customers",  sev:40});
+  let msg;
+  if(!leaks.length){
+    msg="Healthy across the board — strong margin, low waste, regulars coming back. Now scale it: more volume at this margin is the whole game. 🚀";
+  } else {
+    leaks.sort((a,b)=>b.sev-a.sev);
+    msg=`<b>Find your leak.</b> Your biggest one right now is <b>${leaks[0].k}</b>. Fixing one number on this card can change the whole week.`;
+  }
+  $("leakMsg").innerHTML=msg;
 }
 
 function renderReveal(){
