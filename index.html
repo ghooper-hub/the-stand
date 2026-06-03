@@ -158,12 +158,8 @@
   .eventBanner.up .etag{color:var(--leaf2);}
   .eventBanner.down{background:linear-gradient(160deg,#eef4ff,#fff);border:2px solid var(--sky);}
   .eventBanner.down .etag{color:var(--neutral);}
-  /* prediction */
-  .predictBlock{border:2.5px dashed var(--grape);background:linear-gradient(160deg,#faf2ff,#fff);border-radius:16px;padding:14px;margin-top:14px;}
-  .predictBlock h3{font-size:16px;display:flex;align-items:center;gap:7px;margin-bottom:2px;}
-  .predictBlock .pv{font-size:36px;font-weight:900;text-align:center;color:var(--grape2);font-variant-numeric:tabular-nums;}
-  .predictLine{font-weight:900;font-size:16px;margin-bottom:10px;background:#faf2ff;border:1.5px solid #ecd6fb;border-radius:13px;padding:11px 13px;animation:popIn .4s cubic-bezier(.2,1.4,.4,1) both;}
-  .predictLine .fcWhy{font-weight:600;font-size:13px;color:var(--ink2);margin-top:8px;line-height:1.5;}
+  /* "what moved demand today" explainer (under the crowd note) */
+  .fcWhy{font-weight:600;font-size:13px;color:var(--ink2);margin-top:8px;line-height:1.5;}
   .deckFoot{margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
   #planNote{font-size:14px;font-weight:700;}
 
@@ -316,7 +312,6 @@
       <div id="levers"></div>
       <div id="capHint"></div>
       <div id="econBox" class="econBox"></div>
-      <div id="predictBlock"></div>
       <div class="deckFoot">
         <div id="planNote" class="muted"></div>
         <button id="openBtn" class="btn go lg">Open up →</button>
@@ -326,7 +321,6 @@
     <div id="results" class="card hidden" style="margin-top:14px;" aria-live="polite">
       <h2 id="resTitle">Day 1 — Results</h2>
       <div class="beat" id="beatCrowd">
-        <div class="predictLine hidden" id="predictLine"></div>
         <div class="standScene" id="standScene"></div>
         <div id="crowdNote" class="muted"></div>
       </div>
@@ -509,7 +503,7 @@ function newGame(name, mode, seed){
     repeatWalk:0, repeatDeal:0, streak:0, history:[], log:[],
     dealDirectRev:0, dealDirectCogs:0, dealDirectCount:0,
     dealRepeatRev:0, dealRepeatCogs:0, dealRepeatCount:0,
-    bankrupt:false, price:2.50, predict:25, lemBuy:0, cupBuy:0,
+    bankrupt:false, price:2.50, lemBuy:0, cupBuy:0,
     mkt:{flyers:false,social:false,radio:false,loyalty:false}, staffHired:0, dealOn:false };
 }
 function cash(){ return CONFIG.startingCash + S.cumProfit; }
@@ -608,7 +602,7 @@ function simulate(){
     bulkLem: lemBought>=CONFIG.perishable.bulkQty, bulkCup: cupBought>=50,
     mktOn:(mkt.flyers||mkt.social||mkt.radio||mkt.loyalty), mktSpend:Math.round(mktSpend*100)/100,
     staffHired, laborSpend, laborBound, canHire:U.staff, deal:dealOn, served:servedTotal, sWalk, sDeal, sReturn,
-    demand: returningDemand+walkDemand+dealDemand, predict:S.predict, event:ev.key,
+    demand: returningDemand+walkDemand+dealDemand, event:ev.key,
     soldOut: servedTotal < (returningDemand+walkDemand+dealDemand),
     spoiledUnits: paidSpoiledUnits, spoilCost:Math.round(spoilCost*100)/100,
     dealAvailable:U.deal, dealHandledWell: dealOn && dealDemand>0 && sDeal>=0.8*dealDemand,
@@ -620,7 +614,7 @@ function simulate(){
   if(profit>0) S.streak++; else S.streak=0;
 
   const res={ day, traffic, event:ev, returningDemand, walkDemand, dealDemand,
-    demandTotal: returningDemand+walkDemand+dealDemand, predict:S.predict, price:S.price,
+    demandTotal: returningDemand+walkDemand+dealDemand, price:S.price,
     sReturn, sWalk, sDeal, servedTotal, revenue, revFull, revDeal,
     lemSpend, cupSpend, mktSpend, laborSpend, spend, cogs,
     lemSpoiledUnits:paidSpoiledUnits, spoilCost,
@@ -838,7 +832,7 @@ function renderDeck(){
       stepperHTML("staff",S.staffHired), isNew(S.mode,day,"staff")));
     wireStepper("staff", v=>{S.staffHired=v; updatePlan();}, 0, st.maxHire, 1); }
 
-  renderEvent(); renderPredict(); updatePlan();
+  renderEvent(); updatePlan();
 }
 function renderEvent(){
   const ev=dayEvent(S.seed,S.day,S.mode), eb=$("eventBanner");
@@ -847,15 +841,6 @@ function renderEvent(){
   eb.innerHTML=`<span class="ee">${ev.emoji}</span>
     <div><div class="et">${ev.title}</div><div class="ed">${ev.desc}</div></div>
     <span class="etag">${ev.mult>=1?"📈":"📉"} ${ev.tag}</span>`;
-}
-function renderPredict(){
-  const max=Math.round(CONFIG.maxCustomers*6);   // headroom for stacked event + deal multipliers
-  S.predict=clamp(S.predict||25,0,max);
-  $("predictBlock").className="predictBlock";
-  $("predictBlock").innerHTML=`<h3>🔮 Your call: how many customers show up today?</h3>
-    <input type="range" id="predictR" min="0" max="${max}" step="1" value="${S.predict}">
-    <div class="pv" id="predictV">${S.predict}</div>`;
-  $("predictR").addEventListener("input",e=>{ S.predict=parseInt(e.target.value,10)||0; $("predictV").textContent=S.predict; Sound.tick(); });
 }
 function deckIntro(day){
   if(S.mode==="sandbox") return "Everything's unlocked. Cook. 🔥";
@@ -954,8 +939,7 @@ function scheduleBeat(delay){ clearBeatTimer(); beatTimer=setTimeout(advanceBeat
 $("openBtn").addEventListener("click",()=>{ if($("openBtn").disabled) return;
   Sound.whoosh(); haptic(12); const r=simulate(); startResults(r); });
 
-/* name the forces that actually moved today's crowd, so the forecast becomes a
-   teachable read of demand instead of a blind guess */
+/* name the forces that actually moved today's crowd — a teachable read of demand */
 function forecastWhy(r){
   const parts=[], ev=r.event||EVENTS.none;
   if(ev.key!=="none"){ const pct=Math.round((ev.mult-1)*100);
@@ -975,21 +959,12 @@ function startResults(r){
   clearBeatTimer();
   $("beatMoney").classList.add("hidden"); $("beatVerdict").classList.add("hidden");
   $("resFoot").classList.add("hidden"); $("tapHint").classList.add("hidden");
-  // prediction vs reality
-  const guess=r.predict, showed=r.demandTotal, diff=showed-guess, tol=Math.max(3,showed*0.2);
-  let picon,ptxt;
-  if(Math.abs(diff)<=tol){ picon="🎯"; ptxt="Nailed it!"; }
-  else if(diff>0){ picon="📈"; ptxt=`${diff} more than you thought`; }
-  else { picon="📉"; ptxt=`${-diff} fewer than you thought`; }
-  const pl=$("predictLine"); pl.classList.remove("hidden");
-  pl.innerHTML=`🔮 You guessed <b>${guess}</b> · <b>${showed}</b> showed up — ${picon} ${ptxt}`+forecastWhy(r);
-  setTimeout(()=>{ Math.abs(diff)<=tol ? Sound.star(2) : Sound.pop(); }, 120);
   // beat 0: the stand opens for business — animated scene
   renderStand(r);
   let cn=[]; if(r.sWalk) cn.push(`🙂 ${r.sWalk} new`); if(r.sReturn) cn.push(`🔁 ${r.sReturn} regulars`);
   if(r.sDeal) cn.push(`💜 ${r.sDeal} from the deal`); cn.push(`= <b>${r.servedTotal}</b> sold`);
   if(r.soldOut && r.servedTotal>0) cn.push(`<span class="neg">— sold out!</span>`);
-  $("crowdNote").innerHTML=cn.join(" · ");
+  $("crowdNote").innerHTML=cn.join(" · ")+forecastWhy(r);
   window.scrollTo({top:0,behavior:"smooth"});
   scheduleBeat(2200);   // give the open-for-business scene room to play
 }
@@ -1499,14 +1474,10 @@ function renderFac(){
   const body=$("facBody");
   if(!S||!S.log.length){ body.innerHTML=`<div class="muted">No play data yet this session. Finish a run, then reopen.</div>`; return; }
   const c=comprehension(S.log);
-  const fc=S.log.filter(d=>d.predict!=null);
-  let hits=0; fc.forEach(d=>{ if(d.demand>0 && Math.abs(d.predict-d.demand)<=Math.max(3,d.demand*0.2)) hits++; });
-  const forecastPct=fc.length?Math.round(hits/fc.length*100):0;
   let html=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
     <div><div class="muted" style="font-size:12px;font-weight:900;">COMPREHENSION</div>
     <div class="scorering ${c.score>=70?'pos':c.score>=40?'info':'neg'}">${c.score}<span style="font-size:18px;">/100</span></div></div>
     <div style="font-size:13px;line-height:1.7;">
-      Forecast accuracy: <b class="${forecastPct>=50?'flag-good':'flag-bad'}">${forecastPct}%</b> of days within 20%<br>
       Spoilage rate: <b class="${c.spoilRatePct<=15?'flag-good':'flag-bad'}">${c.spoilRatePct}%</b><br>
       First clean day: <b>${c.firstDayNoOverbuy?('day '+c.firstDayNoOverbuy):'never'}</b><br>
       First bulk durables: <b>${c.firstDayBulkDurable?('day '+c.firstDayBulkDurable):'never'}</b><br>
@@ -1514,11 +1485,10 @@ function renderFac(){
       Took deal on unlock: <b class="${c.tookDealOnUnlock?'flag-good':'flag-bad'}">${c.tookDealOnUnlock?'yes':'no'}</b> ·
       stocked for it: <b class="${c.dealServedWell?'flag-good':'flag-bad'}">${c.dealServedWell?'yes':'no'}</b>
     </div></div>`;
-  html+=`<table class="ftable"><tr><th>Day</th><th>Event</th><th>Price</th><th>Guess→Came</th><th>Lem</th><th>Cup</th><th>Bulk</th><th>Ads</th><th>Staff</th><th>Deal</th><th>Sold</th><th>Spoil</th><th>Profit</th></tr>`;
+  html+=`<table class="ftable"><tr><th>Day</th><th>Event</th><th>Price</th><th>Came</th><th>Lem</th><th>Cup</th><th>Bulk</th><th>Ads</th><th>Staff</th><th>Deal</th><th>Sold</th><th>Spoil</th><th>Profit</th></tr>`;
   S.log.forEach(d=>{ const evE=(EVENTS[d.event]||{}).emoji||'';
-    const fcHit = d.demand>0 && Math.abs(d.predict-d.demand)<=Math.max(3,d.demand*0.2);
     html+=`<tr><td>${d.day}</td><td>${evE}</td><td>${dollars(d.price)}</td>
-    <td class="${fcHit?'flag-good':''}">${d.predict}→${d.demand}</td>
+    <td>${d.demand}</td>
     <td>${d.lemBought}${d.freeStock?`<span class="muted">+${d.freeStock}f</span>`:''}</td><td>${d.cupBought}</td>
     <td>${d.bulkLem?'<span class="flag-bad">L</span>':''}${d.bulkCup?'<span class="flag-good">C</span>':''}</td>
     <td>${d.mktOn?'✓':''}</td><td>${d.staffHired||''}</td><td>${d.deal?'✓':''}</td>
