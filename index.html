@@ -121,6 +121,9 @@
   .toggle.on .dot{background:var(--grape);}
   .toggle.on .dot::after{left:14px;}
   .dealbox{border:2.5px solid var(--grape);background:linear-gradient(160deg,#fbedff,#fff);border-radius:16px;padding:14px;box-shadow:0 8px 20px rgba(150,50,200,.15);}
+  .mktMenu{display:flex;flex-direction:column;gap:8px;}
+  .mktMenu .toggle{display:flex;width:100%;}
+  .mktMenu .toggle span:nth-child(2){flex:1;}
   #capHint{margin-top:14px;font-weight:800;font-size:14.5px;}
   /* weekly goal progress bar */
   #goalBar{margin:-2px 0 14px;}
@@ -440,7 +443,13 @@ const CONFIG = {
   loyalPriceTolerance: 1.4,
   perishable: { name:"Lemonade", emoji:"🧋", unit:0.60, bulkQty:50, bulkUnit:0.45 },
   durable:    { name:"Cups", emoji:"🥤", unit:0.20, tiers:[{q:100,u:0.08},{q:50,u:0.12}] },
-  sign: { cost:15, boost:1.4 },
+  marketing: {
+    flyers:  { key:"flyers",  emoji:"🪧", name:"Flyers",        cost:15, boost:0.25 },
+    social:  { key:"social",  emoji:"📱", name:"Social post",   cost:10, boost:0.15, hotBoost:0.30 },
+    radio:   { key:"radio",   emoji:"📻", name:"Radio spot",    cost:45, boost:0.70 },
+    loyalty: { key:"loyalty", emoji:"🎁", name:"Loyalty cards", cost:20, repeatBoost:0.60 },
+  },
+  staff: { wage:25, soloCap:50, perStaff:35, maxHire:4 },
   deal: { unlockDay:5, surge:60, customerPrice:0.50, platformFeePct:0.15, repeatRate:0.45 },
   walkInRepeatRate:0.10,
   repeatDecay:0.80,
@@ -452,12 +461,12 @@ const CONFIG = {
 };
 
 function unlocks(mode, day){
-  if(mode==="sandbox") return {price:true,buyLem:true,buyCup:true,sign:true,deal:true};
-  return { price:true, buyLem:day>=2, buyCup:day>=3, sign:day>=4, deal:day>=CONFIG.deal.unlockDay };
+  if(mode==="sandbox") return {price:true,buyLem:true,buyCup:true,marketing:true,deal:true,staff:true};
+  return { price:true, buyLem:day>=2, buyCup:day>=3, marketing:day>=4, deal:day>=CONFIG.deal.unlockDay, staff:day>=6 };
 }
 function isNew(mode, day, lever){
   if(mode==="sandbox") return false;
-  const map={buyLem:2,buyCup:3,sign:4,deal:CONFIG.deal.unlockDay};
+  const map={buyLem:2,buyCup:3,marketing:4,deal:CONFIG.deal.unlockDay,staff:6};
   return map[lever]===day;
 }
 
@@ -477,8 +486,8 @@ function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.im
 /* Guided mode runs a FIXED event curriculum so each day's lesson reliably lands —
    instead of leaving the teaching to chance. Mechanic-introduction days (1–3) stay
    calm so the lever itself is the only variable; the days whose lesson depends on
-   demand get a guaranteed event: a heatwave on sign day so the sign clearly pays,
-   a busy day-6 so the deal's converts visibly return, and a viral finale on day 7.
+   demand get a guaranteed event: a heatwave on marketing day so the spend clearly
+   pays, a busy day-6 so hiring pays and the deal's converts return, viral finale day 7.
    Sandbox keeps the seeded-random weather for replay variety. */
 const GUIDED_ARC = { 1:"none", 2:"none", 3:"none", 4:"heat", 5:"none", 6:"fair", 7:"hype" };
 function dayEvent(seed, day, mode){
@@ -500,7 +509,8 @@ function newGame(name, mode, seed){
     repeatWalk:0, repeatDeal:0, streak:0, history:[], log:[],
     dealDirectRev:0, dealDirectCogs:0, dealDirectCount:0,
     dealRepeatRev:0, dealRepeatCogs:0, dealRepeatCount:0,
-    bankrupt:false, price:2.50, predict:25, lemBuy:0, cupBuy:0, signOn:false, dealOn:false };
+    bankrupt:false, price:2.50, predict:25, lemBuy:0, cupBuy:0,
+    mkt:{flyers:false,social:false,radio:false,loyalty:false}, staffHired:0, dealOn:false };
 }
 function cash(){ return CONFIG.startingCash + S.cumProfit; }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
@@ -518,19 +528,30 @@ function simulate(){
   const lemAvail  = freeStock + lemBought;
   const cupBought = U.buyCup ? S.cupBuy : 0;
   const cupAvail  = U.buyCup ? (S.cupsStock + cupBought) : Infinity;
-  const signOn = U.sign && S.signOn;
+  const mkt = U.marketing ? S.mkt : {flyers:false,social:false,radio:false,loyalty:false};
   const dealOn = U.deal && S.dealOn;
+  const staffHired = U.staff ? S.staffHired : 0;
 
   const ev = dayEvent(S.seed, day, mode);
   const em = ev.mult || 1;                              // today's event demand multiplier
   const priceFrac = clamp(1 - S.price/CONFIG.maxPrice, 0, 1);
   const loyalFrac = clamp(1 - S.price/(CONFIG.maxPrice*CONFIG.loyalPriceTolerance), 0, 1);
-  const signMult = signOn ? CONFIG.sign.boost : 1;
-  const returningDemand = Math.round((S.repeatWalk + S.repeatDeal) * loyalFrac * em);
-  const walkDemand      = Math.round(CONFIG.maxCustomers * traffic * priceFrac * signMult * em);
+  // marketing channels stack additively; social amplifies when a crowd's already out
+  const M = CONFIG.marketing;
+  const hotDay = em>=1.4 || dealOn;
+  const mktBoost = (mkt.flyers?M.flyers.boost:0)
+                 + (mkt.social?(hotDay?M.social.hotBoost:M.social.boost):0)
+                 + (mkt.radio?M.radio.boost:0);
+  const trafficMult = 1 + mktBoost;
+  const loyaltyMult = mkt.loyalty ? (1+M.loyalty.repeatBoost) : 1;   // brings more regulars back today
+  const returningDemand = Math.round((S.repeatWalk + S.repeatDeal) * loyalFrac * em * loyaltyMult);
+  const walkDemand      = Math.round(CONFIG.maxCustomers * traffic * priceFrac * trafficMult * em);
   const dealDemand      = dealOn ? Math.round(CONFIG.deal.surge * traffic * em) : 0;
 
-  let cap = Math.min(lemAvail, cupAvail);
+  // labor capacity: you alone serve a limited crowd; helpers add throughput
+  const laborCap = CONFIG.staff.soloCap + staffHired*CONFIG.staff.perStaff;
+  const invCap   = Math.min(lemAvail, cupAvail);
+  let cap = Math.min(invCap, laborCap);
   const sReturn = Math.min(returningDemand, cap); cap-=sReturn;
   const sDeal   = Math.min(dealDemand, cap);      cap-=sDeal;
   const sWalk   = Math.min(walkDemand, cap);      cap-=sWalk;
@@ -543,8 +564,12 @@ function simulate(){
 
   const lemSpend = lemBought * lemUnitCost(lemBought);
   const cupSpend = cupBought * cupUnitCost(cupBought);
-  const signSpend= signOn ? CONFIG.sign.cost : 0;
-  const spend = lemSpend + cupSpend + signSpend;
+  const mktSpend = (mkt.flyers?M.flyers.cost:0)+(mkt.social?M.social.cost:0)+(mkt.radio?M.radio.cost:0)+(mkt.loyalty?M.loyalty.cost:0);
+  const laborSpend = staffHired * CONFIG.staff.wage;
+  const spend = lemSpend + cupSpend + mktSpend + laborSpend;
+  // labor was the binding constraint when demand outran what the team could serve
+  const demandTot = returningDemand+walkDemand+dealDemand;
+  const laborBound = (servedTotal===laborCap) && (laborCap<demandTot) && (laborCap<=invCap);
 
   const lemUsed = servedTotal;
   const paidLemUsed = Math.max(0, lemUsed - freeStock);
@@ -575,12 +600,14 @@ function simulate(){
   const dealReturners = Math.round(sReturn*dealShare);
   S.dealRepeatCount+=dealReturners; S.dealRepeatRev+=dealReturners*S.price; S.dealRepeatCogs+=dealReturners*margCost;
 
-  S.repeatWalk = Math.round(S.repeatWalk*CONFIG.repeatDecay) + Math.round(sWalk*CONFIG.walkInRepeatRate);
-  S.repeatDeal = Math.round(S.repeatDeal*CONFIG.repeatDecay) + Math.round(sDeal*CONFIG.deal.repeatRate);
+  const loyAccrual = mkt.loyalty ? 1.5 : 1;   // loyalty cards turn more first-timers into regulars
+  S.repeatWalk = Math.round(S.repeatWalk*CONFIG.repeatDecay) + Math.round(sWalk*CONFIG.walkInRepeatRate*loyAccrual);
+  S.repeatDeal = Math.round(S.repeatDeal*CONFIG.repeatDecay) + Math.round(sDeal*CONFIG.deal.repeatRate*loyAccrual);
 
   S.log.push({ day, price:S.price, lemBought, cupBought, freeStock,
     bulkLem: lemBought>=CONFIG.perishable.bulkQty, bulkCup: cupBought>=50,
-    sign:signOn, deal:dealOn, served:servedTotal, sWalk, sDeal, sReturn,
+    mktOn:(mkt.flyers||mkt.social||mkt.radio||mkt.loyalty), mktSpend:Math.round(mktSpend*100)/100,
+    staffHired, laborSpend, laborBound, canHire:U.staff, deal:dealOn, served:servedTotal, sWalk, sDeal, sReturn,
     demand: returningDemand+walkDemand+dealDemand, predict:S.predict, event:ev.key,
     soldOut: servedTotal < (returningDemand+walkDemand+dealDemand),
     spoiledUnits: paidSpoiledUnits, spoilCost:Math.round(spoilCost*100)/100,
@@ -595,10 +622,11 @@ function simulate(){
   const res={ day, traffic, event:ev, returningDemand, walkDemand, dealDemand,
     demandTotal: returningDemand+walkDemand+dealDemand, predict:S.predict, price:S.price,
     sReturn, sWalk, sDeal, servedTotal, revenue, revFull, revDeal,
-    lemSpend, cupSpend, signSpend, spend, cogs,
+    lemSpend, cupSpend, mktSpend, laborSpend, spend, cogs,
     lemSpoiledUnits:paidSpoiledUnits, spoilCost,
     cupsLeft:U.buyCup?S.cupsStock:0, cupBought, lemBought, freeStock,
-    profit, signOn, dealOn, U, soldOut: servedTotal<(returningDemand+walkDemand+dealDemand) };
+    profit, mkt:{...mkt}, staffHired, laborCap, laborBound, dealOn, U,
+    soldOut: servedTotal<(returningDemand+walkDemand+dealDemand) };
   S.history.push(res);
   return res;
 }
@@ -755,11 +783,12 @@ function renderDeck(){
   $("hudTargetWrap") && 0;
   renderStrip(); renderGoal();
 
-  const titles=["Open up","Stock the cart","Cups & bulk","Put up a sign","The deal platform","Word's spreading","Last day"];
+  const titles=["Open up","Stock the cart","Cups & bulk","Marketing","The deal platform","Hire help","Last day"];
   $("deckTitle").textContent=`Day ${day} — ${titles[Math.min(day-1,titles.length-1)]}`;
   $("deckSub").innerHTML=deckIntro(day);
 
-  S.lemBuy = U.buyLem ? (S.lemBuy||30) : 0; S.cupBuy=0; S.signOn=false; S.dealOn=false;
+  S.lemBuy = U.buyLem ? (S.lemBuy||30) : 0; S.cupBuy=0;
+  S.mkt={flyers:false,social:false,radio:false,loyalty:false}; S.staffHired=0; S.dealOn=false;
   const L=$("levers"); L.innerHTML="";
 
   L.appendChild(lever("💰 Price per cup","Charge more per cup, but fewer people buy.", `
@@ -781,12 +810,19 @@ function renderDeck(){
       stepperHTML("cup",S.cupBuy), isNew(S.mode,day,"buyCup")));
     wireStepper("cup", v=>{S.cupBuy=v; updatePlan();}, 0,400,25); }
 
-  if(U.sign){
-    L.appendChild(lever("🪧 Put up a sign",
-      `${dollars(CONFIG.sign.cost)} for the day — you pay it whether or not anyone shows. ~${Math.round((CONFIG.sign.boost-1)*100)}% more traffic.`,
-      `<div class="toggle" id="signT"><span class="dot"></span><span>Run the sign (${dollars(CONFIG.sign.cost)})</span></div>`,
-      isNew(S.mode,day,"sign")));
-    $("signT").addEventListener("click",()=>{ S.signOn=!S.signOn; $("signT").classList.toggle("on",S.signOn); Sound.pop(); haptic(8); updatePlan(); }); }
+  if(U.marketing){ const M=CONFIG.marketing;
+    const chan=(c,note)=>`<div class="toggle mktChan" data-mkt="${c.key}"><span class="dot"></span>
+       <span>${c.emoji} ${c.name} <b>(${dollars(c.cost)})</b> <span class="muted" style="font-weight:600">— ${note}</span></span></div>`;
+    const body=`<div class="mktMenu">
+      ${chan(M.flyers,"+25% walk-in traffic")}
+      ${chan(M.social,"+15% traffic · 2× on a busy day")}
+      ${chan(M.radio,"+70% traffic — only pays on a big day")}
+      ${chan(M.loyalty,"brings the regulars back")}
+    </div>`;
+    L.appendChild(lever("📣 Marketing","Each channel buys traffic differently. Pick what pays — every one is a fixed cost.",body,isNew(S.mode,day,"marketing")));
+    document.querySelectorAll('[data-mkt]').forEach(t=>{ const k=t.dataset.mkt;
+      t.classList.toggle('on',!!S.mkt[k]);
+      t.addEventListener('click',()=>{ S.mkt[k]=!S.mkt[k]; t.classList.toggle('on',S.mkt[k]); Sound.pop(); haptic(8); updatePlan(); }); }); }
 
   if(U.deal){ const dl=CONFIG.deal;
     L.appendChild(lever("✨ The deal platform",
@@ -795,6 +831,12 @@ function renderDeck(){
        <div class="costnote" style="margin:8px 0 0;">Looks rough. Do it anyway. 👀</div></div>`,
       isNew(S.mode,day,"deal")));
     $("dealT").addEventListener("click",()=>{ S.dealOn=!S.dealOn; $("dealT").classList.toggle("on",S.dealOn); Sound.pop(); haptic(8); updatePlan(); }); }
+
+  if(U.staff){ const st=CONFIG.staff;
+    L.appendChild(lever("👥 Hire help",
+      `You alone serve about <b>${st.soloCap}</b> cups a day. Each helper adds <b>+${st.perStaff}</b> capacity for <b>${dollars(st.wage)}</b>/day in wages — pay it whether they're busy or not.`,
+      stepperHTML("staff",S.staffHired), isNew(S.mode,day,"staff")));
+    wireStepper("staff", v=>{S.staffHired=v; updatePlan();}, 0, st.maxHire, 1); }
 
   renderEvent(); renderPredict(); updatePlan();
 }
@@ -821,9 +863,9 @@ function deckIntro(day){
     1:"Day one. Just pick your price. 👀",
     2:"Now <b>you</b> buy the lemonade. Every cup costs you — sold or not.",
     3:"Lemonade spoils. Cups don't. Bulk-buy the right one. 📦",
-    4:"Want a sign? Costs the same if 1 person shows or 50.",
+    4:"Time to pull a crowd. Each marketing channel buys traffic differently — pick what pays. 📣",
     5:"💜 A deal platform wants to flood you with cheap customers. Looks scary. Do it.",
-    6:"Keep going. Notice anyone… familiar? 👀",
+    6:"The crowd's outgrowing you — one person can only pour so fast. Hire help, and watch who comes back. 👥",
     7:"Last day. Send it. 🚀",
   })[day]||"Set your plan, then open up.";
 }
@@ -846,10 +888,12 @@ function wireStepper(key,onChange,min,max,step){
 function updatePlan(){
   if($("lemCost")){ const q=S.lemBuy; $("lemCost").textContent=q?("= "+dollars(q*lemUnitCost(q))+(q>=CONFIG.perishable.bulkQty?" 📉":"")):""; }
   if($("cupCost")){ const q=S.cupBuy; $("cupCost").textContent=q?("= "+dollars(q*cupUnitCost(q))+(q>=50?" 📉":"")):""; }
+  if($("staffCost")){ const n=S.staffHired; $("staffCost").textContent=n?("= "+dollars(n*CONFIG.staff.wage)+"/day"):""; }
   const U=unlocks(S.mode,S.day); let spend=0;
   if(U.buyLem) spend+=S.lemBuy*lemUnitCost(S.lemBuy);
   if(U.buyCup) spend+=S.cupBuy*cupUnitCost(S.cupBuy);
-  if(U.sign&&S.signOn) spend+=CONFIG.sign.cost;
+  if(U.marketing){ const M=CONFIG.marketing; for(const k of ["flyers","social","radio","loyalty"]) if(S.mkt[k]) spend+=M[k].cost; }
+  if(U.staff) spend+=S.staffHired*CONFIG.staff.wage;
   const broke=spend>cash();
   $("planNote").innerHTML = broke ? `<span class="neg">Need ${dollars(spend)}, you have ${dollars(cash())}.</span>`
     : (spend>0?`Outlay <b>${dollars(spend)}</b> · Wallet ${dollars(cash())}`:`Wallet ${dollars(cash())}`);
@@ -858,12 +902,17 @@ function updatePlan(){
   const freeStock=(S.mode==="guided"&&S.day===1)?CONFIG.day1FreeStock:0;
   const lemPlanned=(U.buyLem?S.lemBuy:0)+freeStock;
   const cupsAvail=U.buyCup?(S.cupsStock+S.cupBuy):Infinity;
-  const capacity=Math.min(lemPlanned,cupsAvail);
+  const invCap=Math.min(lemPlanned,cupsAvail);
+  const showLabor=U.staff||S.mode==="sandbox";
+  const laborCap=CONFIG.staff.soloCap+(U.staff?S.staffHired:0)*CONFIG.staff.perStaff;
+  const capacity=showLabor?Math.min(invCap,laborCap):invCap;
   const ch=$("capHint");
   if(!U.buyLem) ch.innerHTML="";
+  else if(showLabor && laborCap<invCap)
+    ch.innerHTML=`<span class="neg">⚠ Staffing caps you at <b>${laborCap}</b> cups today — hire help to serve the rest.</span>`;
   else if(U.buyCup && cupsAvail<lemPlanned)
-    ch.innerHTML=`<span class="neg">⚠ Cups are your bottleneck — you can only serve ${capacity} (you have ${cupsAvail} cups). Buy more.</span>`;
-  else ch.innerHTML=`<span class="muted">🧺 Ready to serve up to <b style="color:var(--ink)">${capacity}</b> today${U.buyCup?` · ${cupsAvail} cups on hand`:``}.</span>`;
+    ch.innerHTML=`<span class="neg">⚠ Cups are your bottleneck — you can only serve ${invCap} (you have ${cupsAvail} cups). Buy more.</span>`;
+  else ch.innerHTML=`<span class="muted">🧺 Ready to serve up to <b style="color:var(--ink)">${capacity}</b> today${U.buyCup?` · ${cupsAvail} cups on hand`:``}${showLabor?` · serves ${laborCap}`:``}.</span>`;
 
   // unit economics — the heart of running a profitable business
   const eb=$("econBox");
@@ -987,7 +1036,8 @@ function renderStand(r){
       <!-- pitcher + you -->
       <rect x="138" y="104" width="22" height="20" rx="4" fill="#ffd23f" stroke="#e0a800"/><rect x="158" y="109" width="6" height="6" fill="#ffd23f"/>
       <text x="232" y="118" font-size="26">🧑‍🍳</text>
-      ${r.signOn?'<text x="96" y="150" font-size="24">🪧</text>':''}
+      ${(r.mkt&&(r.mkt.flyers||r.mkt.social||r.mkt.radio||r.mkt.loyalty))?'<text x="96" y="150" font-size="24">🪧</text>':''}
+      ${r.staffHired>0?'<text x="262" y="118" font-size="22">🧑‍🤝‍🧑</text>':''}
     </svg>
     <div class="live" id="liveServe">🥤 0</div>`;
 
@@ -1032,7 +1082,8 @@ function revealMoney(){
   if(r.revDeal>0) rows.push(`<tr style="animation-delay:${(i++)*70}ms"><td colspan="2" class="muted" style="font-size:13px;border:none;padding-top:0;">incl. deal channel ${dollars(r.revDeal)} (after cut)</td></tr>`);
   if(r.lemSpend>0) rows.push(row("Lemonade bought","−"+dollars(r.lemSpend),"neg"));
   if(r.cupSpend>0) rows.push(row("Cups bought","−"+dollars(r.cupSpend),"neg"));
-  if(r.signSpend>0) rows.push(row("Sign (fixed cost)","−"+dollars(r.signSpend),"neg"));
+  if(r.mktSpend>0) rows.push(row("Marketing (fixed cost)","−"+dollars(r.mktSpend),"neg"));
+  if(r.laborSpend>0) rows.push(row(`Staff wages (${r.staffHired} helper${r.staffHired>1?'s':''})`,"−"+dollars(r.laborSpend),"neg"));
   if(r.spoilCost>0) rows.push(row(`🗑️ Spoiled (${r.lemSpoiledUnits} wasted)`,"−"+dollars(r.spoilCost),"neg"));
   if(r.cupsLeft>0) rows.push(row("Cups kept for tomorrow",r.cupsLeft+" in stock","info"));
   $("plTable").innerHTML=rows.join("");
@@ -1073,10 +1124,12 @@ function mentorLine(r){
   if(S.bankrupt) return "💸 Broke! Costs hit whether you sell or not.";
   if(r.U.buyCup && r.servedTotal===0 && (r.lemBought>0||r.freeStock>0)) return "🥤 No cups = no sales. They never spoil — buy a big batch.";
   if(r.spoilCost>=8) return "🗑️ You overbought. The extra spoiled — cash in the trash.";
+  if(r.laborBound) return r.U.staff ? "👥 Swamped — you ran out of hands, not customers. Hire more help." : "👥 Swamped! One person can't pour fast enough. Hiring help unlocks day 6.";
   if(r.soldOut && r.servedTotal>0) return "🔥 Sold out! Money left on the table — stock more.";
   if(r.dealOn && r.day===CONFIG.deal.unlockDay) return `😬 Stung, right? Wait for it… watch days ${r.day+1}–${CONFIG.totalDays}.`;
   if(r.servedTotal<8 && S.price>=3.5) return "🦗 Too pricey — most walked past. Drop it.";
-  if(r.signOn && r.revenue<r.signSpend*3) return "🪧 Sign barely paid for itself today.";
+  if(r.staffHired>0 && r.profit<0) return "👥 The wages outran the extra sales today — staff up only when the crowd needs the hands.";
+  if(r.mktSpend>0 && r.revenue<r.mktSpend*3) return "📣 That marketing barely paid for itself today.";
   if(r.cupBought>=50) return "📦 Smart — bulk cups are cheap AND never spoil.";
   if(r.profit>=CONFIG.stars.three) return "🤑 Huge day. Good price, real margin.";
   if(r.sReturn>=6) return "🔁 Look — regulars are coming back for you.";
@@ -1136,7 +1189,10 @@ function renderScorecard(){
   const spoilCost = h.reduce((s,x)=>s+x.spoilCost,0);
   const wastePct  = lemBought>0 ? Math.round(spoiled/lemBought*100) : 0;
   const endCash   = cash();
-  const mkt       = h.reduce((s,x)=>s+x.signSpend,0);
+  const mkt       = h.reduce((s,x)=>s+(x.mktSpend||0),0);
+  const labor     = h.reduce((s,x)=>s+(x.laborSpend||0),0);
+  const daysPlayed= h.length;
+  const avgDay    = daysPlayed>0 ? revenue/daysPlayed : 0;
 
   const tile=(l,v,sub,cls)=>`<div class="sc"><div class="scl">${l}</div>
     <div class="scv ${cls||''}">${v}</div><div class="scs">${sub}</div></div>`;
@@ -1147,8 +1203,10 @@ function renderScorecard(){
     tile("Net margin",netPct+"%","profit per $1 of sales",netPct>=20?"pos":netPct>=0?"":"neg")+
     tile("Cups sold",cups,dollars(avgSale)+" average sale")+
     tile("Waste rate",wastePct+"%",dollars(spoilCost)+" of stock spoiled",wastePct<=15?"pos":wastePct<=30?"":"neg")+
+    tile("Marketing",dollars(mkt),mkt>0?"spent pulling a crowd":"you never advertised")+
+    tile("Labor cost",dollars(labor),labor>0?"wages paid to scale":"you ran solo all week")+
     tile("Ending cash",dollars(endCash),"your runway to keep operating",endCash>=CONFIG.startingCash?"pos":"neg")+
-    tile("Marketing spend",dollars(mkt),mkt>0?"fixed cost spent on signage":"you never advertised");
+    tile("Daily sales",dollars(avgDay),"average revenue per day");
 
   // Customer economics: cost to acquire a deal customer vs. what they paid back
   const firstNet = S.dealDirectRev - S.dealDirectCogs;
@@ -1173,6 +1231,8 @@ function renderScorecard(){
                    leaks.push({k:"customers you never turned into regulars",   sev:45});
   if(S.dealDirectCount<=0)
                    leaks.push({k:"never using the deal to acquire customers",  sev:40});
+  const swampedDays=h.filter(x=>x.laborBound && x.canHire).length;
+  if(swampedDays>0) leaks.push({k:"turning customers away because you were understaffed", sev:50+swampedDays*5});
   let msg;
   if(!leaks.length){
     msg="Healthy across the board — strong margin, low waste, regulars coming back. Now scale it: more volume at this margin is the whole game. 🚀";
@@ -1264,18 +1324,18 @@ function recap(){
     items.push({emoji:"🧮",name:"Cost & margin",status,line});
   })();
 
-  // 3 — Fixed costs & break-even (the sign)
+  // 3 — Marketing as a fixed cost that has to pay for itself
   (function(){
-    const signDays=log.filter(d=>d.sign);
+    const adDays=log.filter(d=>d.mktSpend>0);
     let status,line;
-    if(!signDays.length){ status="missed";
-      line=`You never ran the sign. It's a fixed cost — ${dollars(CONFIG.sign.cost)} whether 1 person shows or 50. Worth testing: it only pays when the extra traffic covers it.`; }
-    else { const good=signDays.filter(d=>d.profit>0).length;
-      if(good===signDays.length){ status="got";
-        line=`You ran the sign ${signDays.length} day${signDays.length>1?"s":""} and the extra traffic cleared its ${dollars(CONFIG.sign.cost)} every time. That's beating your break-even.`; }
+    if(!adDays.length){ status="missed";
+      line=`You never spent on marketing. Flyers, social, radio and loyalty cards each buy traffic differently — all fixed costs that only pay when the extra crowd covers them. Worth testing which earns its keep.`; }
+    else { const good=adDays.filter(d=>d.profit>0).length;
+      if(good===adDays.length){ status="got";
+        line=`You ran marketing ${adDays.length} day${adDays.length>1?"s":""} and the extra traffic cleared the cost every time. Spending to make money — that's a fixed cost that pays.`; }
       else { status="partial";
-        line=`You ran the sign ${signDays.length} days, but ${signDays.length-good} didn't pay for itself. Fixed costs hit no matter what — only spend them when traffic covers them.`; } }
-    items.push({emoji:"🪧",name:"Fixed costs & break-even",status,line});
+        line=`You ran marketing ${adDays.length} days, but ${adDays.length-good} didn't pay for itself. Marketing is a fixed cost — only buy the channel whose traffic covers its bill.`; } }
+    items.push({emoji:"📣",name:"Marketing that pays",status,line});
   })();
 
   // 4 — The hook (discount hard to pull a crowd)
@@ -1302,12 +1362,29 @@ function recap(){
     items.push({emoji:"🔁",name:"Lifetime value",status,line});
   })();
 
+  // 6 — Staffing & capacity (paying for hands to capture demand)
+  (function(){
+    const staffDays=log.filter(d=>d.staffHired>0);
+    const swamped=log.filter(d=>d.laborBound && d.canHire);
+    let status,line;
+    if(swamped.length && !staffDays.length){ status="missed";
+      line=`You got swamped ${swamped.length} day${swamped.length>1?"s":""} — more demand than one person could serve, so you turned customers away. Hiring help adds capacity; on a busy day the wage pays for itself many times over.`; }
+    else if(staffDays.length){ const good=staffDays.filter(d=>d.profit>0).length;
+      status = good===staffDays.length?"got":"partial";
+      line = good===staffDays.length
+        ? `You hired help on ${staffDays.length} day${staffDays.length>1?"s":""} and still turned a profit — paying wages to capture a crowd you couldn't serve alone is how you scale.`
+        : `You hired help, but ${staffDays.length-good} day${(staffDays.length-good)>1?"s":""} the wages outran the extra sales. Staff is a fixed cost — add hands only when demand needs them.`; }
+    else { status="partial";
+      line=`You never needed extra hands — demand stayed within what one person can serve. Once a crowd outgrows you, hiring is how you stop turning money away.`; }
+    items.push({emoji:"👥",name:"Staffing & capacity",status,line});
+  })();
+
   return items;
 }
 function renderRecap(){
-  const items=recap(); const got=items.filter(i=>i.status==="got").length;
-  $("recapHead").textContent = got>=5 ? "You locked in all 5 fundamentals. 🧠"
-    : got===0 ? "Here's what to chase next run:" : `You locked in ${got} of 5 fundamentals.`;
+  const items=recap(); const got=items.filter(i=>i.status==="got").length; const tot=items.length;
+  $("recapHead").textContent = got>=tot ? `You locked in all ${tot} fundamentals. 🧠`
+    : got===0 ? "Here's what to chase next run:" : `You locked in ${got} of ${tot} fundamentals.`;
   $("recapBody").innerHTML = items.map((it,i)=>{
     const badge = it.status==="got" ? '<span class="rb got">✓ got it</span>'
       : it.status==="partial" ? '<span class="rb part">~ getting there</span>'
@@ -1437,15 +1514,15 @@ function renderFac(){
       Took deal on unlock: <b class="${c.tookDealOnUnlock?'flag-good':'flag-bad'}">${c.tookDealOnUnlock?'yes':'no'}</b> ·
       stocked for it: <b class="${c.dealServedWell?'flag-good':'flag-bad'}">${c.dealServedWell?'yes':'no'}</b>
     </div></div>`;
-  html+=`<table class="ftable"><tr><th>Day</th><th>Event</th><th>Price</th><th>Guess→Came</th><th>Lem</th><th>Cup</th><th>Bulk</th><th>Sign</th><th>Deal</th><th>Sold</th><th>Spoil</th><th>Profit</th></tr>`;
+  html+=`<table class="ftable"><tr><th>Day</th><th>Event</th><th>Price</th><th>Guess→Came</th><th>Lem</th><th>Cup</th><th>Bulk</th><th>Ads</th><th>Staff</th><th>Deal</th><th>Sold</th><th>Spoil</th><th>Profit</th></tr>`;
   S.log.forEach(d=>{ const evE=(EVENTS[d.event]||{}).emoji||'';
     const fcHit = d.demand>0 && Math.abs(d.predict-d.demand)<=Math.max(3,d.demand*0.2);
     html+=`<tr><td>${d.day}</td><td>${evE}</td><td>${dollars(d.price)}</td>
     <td class="${fcHit?'flag-good':''}">${d.predict}→${d.demand}</td>
     <td>${d.lemBought}${d.freeStock?`<span class="muted">+${d.freeStock}f</span>`:''}</td><td>${d.cupBought}</td>
     <td>${d.bulkLem?'<span class="flag-bad">L</span>':''}${d.bulkCup?'<span class="flag-good">C</span>':''}</td>
-    <td>${d.sign?'✓':''}</td><td>${d.deal?'✓':''}</td>
-    <td>${d.served}${d.soldOut?'<span class="flag-bad">!</span>':''}</td>
+    <td>${d.mktOn?'✓':''}</td><td>${d.staffHired||''}</td><td>${d.deal?'✓':''}</td>
+    <td>${d.served}${d.soldOut?'<span class="flag-bad">!</span>'+(d.laborBound?'<span class="flag-bad">👥</span>':''):''}</td>
     <td class="${d.spoiledUnits?'flag-bad':''}">${d.spoiledUnits||''}</td>
     <td class="${d.profit>=0?'flag-good':'flag-bad'}">${dollars(d.profit)}</td></tr>`; });
   html+=`</table><div class="muted" style="font-size:12px;margin-top:6px;">
