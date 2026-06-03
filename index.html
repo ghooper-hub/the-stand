@@ -71,11 +71,9 @@
   @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg);}50%{transform:translateY(-10px) rotate(3deg);}}
   #start h1{font-size:60px;background:linear-gradient(180deg,#3a2d12,#7a5a10);-webkit-background-clip:text;background-clip:text;color:transparent;margin:4px 0;}
   .tag{font-size:18px;color:#6a5a2a;font-weight:600;margin-bottom:22px;}
-  #nameInput,#codeInput{font-family:inherit;font-size:19px;font-weight:700;padding:14px 18px;border-radius:16px;
+  #nameInput{font-family:inherit;font-size:19px;font-weight:700;padding:14px 18px;border-radius:16px;
     border:2px solid var(--line);width:100%;max-width:340px;text-align:center;background:#fff;}
-  #codeInput{font-size:15px;max-width:300px;text-transform:uppercase;margin-top:14px;letter-spacing:.08em;}
-  #codeInput::placeholder{text-transform:none;letter-spacing:normal;}
-  #nameInput:focus,#codeInput:focus{outline:none;border-color:var(--lemon2);box-shadow:0 0 0 4px rgba(255,183,3,.2);}
+  #nameInput:focus{outline:none;border-color:var(--lemon2);box-shadow:0 0 0 4px rgba(255,183,3,.2);}
   .modepick{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:14px 0;}
   .modecard{flex:1;min-width:220px;text-align:left;background:#fff;border:2.5px solid var(--line);
     border-radius:18px;padding:16px;transition:.15s;}
@@ -124,6 +122,23 @@
   .toggle.on .dot::after{left:14px;}
   .dealbox{border:2.5px solid var(--grape);background:linear-gradient(160deg,#fbedff,#fff);border-radius:16px;padding:14px;box-shadow:0 8px 20px rgba(150,50,200,.15);}
   #capHint{margin-top:14px;font-weight:800;font-size:14.5px;}
+  /* weekly goal progress bar */
+  #goalBar{margin:-2px 0 14px;}
+  #goalBar .gbTop{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;font-weight:900;color:#6a5a2a;margin-bottom:5px;}
+  #goalBar .gbTrack{height:11px;border-radius:999px;background:rgba(255,255,255,.6);box-shadow:inset 0 1px 2px rgba(150,110,20,.25);overflow:hidden;}
+  #goalBar .gbFill{height:100%;border-radius:999px;background:linear-gradient(90deg,#5fe070,#33b24c);transition:width .5s cubic-bezier(.2,1,.3,1);}
+  #goalBar .gbFill.neg{background:linear-gradient(90deg,#ff9e8a,#e23b3b);}
+  /* unit-economics box (per-cup margin + break-even) */
+  .econBox{margin-top:14px;border:2px solid var(--line);background:linear-gradient(160deg,#fffdf2,#fff);border-radius:14px;padding:12px 14px;font-size:14px;font-weight:700;line-height:1.55;}
+  .econBox .er{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .econBox .be{margin-top:7px;padding-top:8px;border-top:1.5px dashed var(--line);}
+  .econBox .muted{font-weight:600;}
+  /* end-of-week P&L KPI strip */
+  .kpiStrip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px;}
+  .kpiStrip .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 8px;box-shadow:0 6px 14px rgba(120,80,10,.1);}
+  .kpiStrip .kpi .kl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);}
+  .kpiStrip .kpi .kv{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums;margin-top:2px;}
+  @media(max-width:560px){ .kpiStrip{grid-template-columns:repeat(2,1fr);} }
   /* random-event banner */
   .eventBanner{display:flex;gap:11px;align-items:center;border-radius:14px;padding:12px 14px;margin-bottom:14px;animation:rise .4s ease both;}
   .eventBanner>div{flex:1;min-width:0;}
@@ -259,7 +274,7 @@
   <section id="start" class="card center">
     <div class="logo">🍋🧋</div>
     <h1>The Stand</h1>
-    <div class="tag">Run a lemonade stand for a week. Learn how money really works.</div>
+    <div class="tag">Run a lemonade stand for a week. Learn how to run a business that actually makes money.</div>
 
     <div class="label">What should we call you?</div>
     <input id="nameInput" placeholder="Your name" maxlength="18" autocomplete="off" />
@@ -272,7 +287,6 @@
         <p>Every lever live from day one. For replays.</p></div>
     </div>
 
-    <input id="codeInput" placeholder="Challenge code (optional)" maxlength="8" autocomplete="off" spellcheck="false" />
     <div style="margin-top:18px;"><button id="startBtn" class="btn go lg">Open the stand →</button></div>
     <div id="bestLine" class="muted" style="margin-top:16px;font-size:14px;font-weight:700;"></div>
   </section>
@@ -286,6 +300,7 @@
       <div class="stat streak"><div class="lbl">Streak</div><div class="val" id="hudStreak">—</div></div>
     </div>
     <div class="daystrip" id="dayStrip"></div>
+    <div id="goalBar"></div>
 
     <div id="deck" class="card deck">
       <h2 id="deckTitle">Day 1</h2>
@@ -293,6 +308,7 @@
       <div id="eventBanner"></div>
       <div id="levers"></div>
       <div id="capHint"></div>
+      <div id="econBox" class="econBox"></div>
       <div id="predictBlock"></div>
       <div class="deckFoot">
         <div id="planNote" class="muted"></div>
@@ -328,6 +344,7 @@
       <h2 style="font-size:21px;margin:14px 0 2px;">Your week at the stand</h2>
       <div class="scorebig" id="endScore">$0</div>
       <div class="muted" id="endSub" style="font-weight:700;"></div>
+      <div id="endKpi" class="kpiStrip"></div>
       <div style="margin-top:14px;">
         <div class="crowdLbl">Operator IQ</div>
         <div class="iqstars" id="iqStars"></div>
@@ -435,7 +452,7 @@ function isNew(mode, day, lever){
 
 /* ============================================================ RANDOM EVENTS (seeded)
    Each run has a seed; the day's event is a deterministic function of (seed, day),
-   so a "challenge code" reproduces the exact same week — fair to compare. */
+   so a run's weather stays consistent (used for sandbox replay variety). */
 const EVENTS={
   none: {key:"none", mult:1},
   heat: {key:"heat", emoji:"🌡️", title:"Heatwave!",            desc:"Everyone wants a cold drink today.",      tag:"more customers",     mult:1.45},
@@ -695,9 +712,7 @@ document.querySelectorAll(".modecard").forEach(c=>{
 });
 $("startBtn").addEventListener("click",()=>{
   Sound.unlock(); Sound.whoosh(); haptic(10);
-  const code=$("codeInput").value.trim();
-  const seed=code?codeToSeed(code):undefined;
-  S=newGame($("nameInput").value.trim()||"You", chosenMode, seed);
+  S=newGame($("nameInput").value.trim()||"You", chosenMode);
   show("game"); renderDeck();
 });
 function renderBest(){ const r=loadRecords(); $("bestLine").innerHTML = r.length
@@ -714,7 +729,7 @@ function renderDeck(){
   $("hudProfit").className="val "+(S.cumProfit<0?"neg":"");
   $("hudStreak").textContent=S.streak>=1?("🔥"+S.streak):"—";
   $("hudTargetWrap") && 0;
-  renderStrip();
+  renderStrip(); renderGoal();
 
   const titles=["Open up","Stock the cart","Cups & bulk","Put up a sign","The deal platform","Word's spreading","Last day"];
   $("deckTitle").textContent=`Day ${day} — ${titles[Math.min(day-1,titles.length-1)]}`;
@@ -825,10 +840,39 @@ function updatePlan(){
   else if(U.buyCup && cupsAvail<lemPlanned)
     ch.innerHTML=`<span class="neg">⚠ Cups are your bottleneck — you can only serve ${capacity} (you have ${cupsAvail} cups). Buy more.</span>`;
   else ch.innerHTML=`<span class="muted">🧺 Ready to serve up to <b style="color:var(--ink)">${capacity}</b> today${U.buyCup?` · ${cupsAvail} cups on hand`:``}.</span>`;
+
+  // unit economics — the heart of running a profitable business
+  const eb=$("econBox");
+  if(eb){
+    const costPerCup=(U.buyLem?lemUnitCost(S.lemBuy):0)+(U.buyCup?cupUnitCost(S.cupBuy):0);
+    const margin=S.price-costPerCup;
+    const marginPct=S.price>0?Math.round(margin/S.price*100):0;
+    let html=`<div class="er">
+        <span>💵 Sell at <b>${dollars(S.price)}</b> · costs <b>${dollars(costPerCup)}</b> to make</span>
+        <span class="${margin>=0?'pos':'neg'}">▶ <b>${dollars(margin)}</b>/cup (${marginPct}%)</span></div>`;
+    if(spend>0){
+      const be=S.price>0?Math.ceil(spend/S.price):0;
+      html+=`<div class="be">🎯 Break-even: sell <b>${be}</b> cup${be===1?'':'s'} to cover today's <b>${dollars(spend)}</b> outlay — every cup after that is profit.</div>`;
+    } else {
+      html+=`<div class="be muted">No cash outlay today${U.buyLem?'':' — your starter stock is free'} — every cup you sell is pure profit.</div>`;
+    }
+    eb.innerHTML=html;
+  }
 }
 function renderStrip(){ const st=$("dayStrip"); st.innerHTML="";
   for(let i=1;i<=CONFIG.totalDays;i++){ const d=document.createElement("div");
     d.className="daydot"+(i<S.day?" done":"")+(i===S.day?" now":""); st.appendChild(d); } }
+/* weekly profit goal — keeps the player managing toward a target, like a real owner */
+function renderGoal(){
+  const gb=$("goalBar"); if(!gb) return;
+  const tgt=CONFIG.targetProfit, p=S.cumProfit;
+  const pct=clamp((p/tgt)*100,0,100), reached=p>=tgt;
+  gb.innerHTML=`<div class="gbTop">
+      <span>🎯 Weekly goal ${dollars(tgt)}</span>
+      <span class="${p<0?'neg':reached?'pos':''}">${dollars(p)}${tgt>0?` · ${Math.round(clamp((p/tgt)*100,0,100))}%`:''}${reached?' ✅':''}</span>
+    </div>
+    <div class="gbTrack"><div class="gbFill${p<0?' neg':''}" style="width:${p<0?6:Math.max(2,pct)}%"></div></div>`;
+}
 
 /* ============================================================ OPEN → RESULTS (beat reveal) */
 let curR=null, beatState=0, beatTimer=null;
@@ -1040,7 +1084,23 @@ function endGame(){
   const iq=Math.max(1,Math.round(c.score/20));
   $("iqStars").textContent="⭐".repeat(iq)+"☆".repeat(5-iq);
   $("iqLabel").textContent=({1:"Day one. Keep playing.",2:"Getting it.",3:"Solid instincts.",4:"Sharp operator.",5:"You think like a merchant. 🧠"})[iq]||"";
-  $("codeLine").innerHTML=`🎟️ Challenge code: <b>${seedToCode(S.seed)}</b> — share it so a friend plays your exact week.`;
+  // weekly P&L — the four numbers a real operator watches
+  (function(){
+    const h=S.history;
+    const rev=h.reduce((s,x)=>s+x.revenue,0);
+    const cost=h.reduce((s,x)=>s+x.spend,0);
+    const cups=h.reduce((s,x)=>s+x.servedTotal,0);
+    const netMarginPct=rev>0?Math.round((rev-cost)/rev*100):0;
+    const kpi=(l,v,cls)=>`<div class="kpi"><div class="kl">${l}</div><div class="kv ${cls||''}">${v}</div></div>`;
+    $("endKpi").innerHTML=
+      kpi("Revenue",dollars(rev),"pos")+
+      kpi("Costs","−"+dollars(cost),"neg")+
+      kpi("Cups sold",cups)+
+      kpi("Net margin",netMarginPct+"%",netMarginPct>=0?"pos":"neg");
+  })();
+  $("codeLine").innerHTML = won
+    ? "You ran a profitable week. 🎉 Now do it again on a tighter margin."
+    : "Play again — squeeze the waste, watch your margin, hit the goal. 📈";
   renderReveal(); renderTransfer(); renderRecap();
   saveRecord(S.name,S.cumProfit); postRemote(S._lastEntry); renderLeaderboard();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -1249,8 +1309,7 @@ function drawShareCard(){
   roundRect(x,bx,by,bw,bh,32); x.fill();
   x.fillStyle="#fff"; x.font="900 26px -apple-system,Arial";
   x.fillText(won?"🎉 Beat the target":"can you beat me? 👀",W/2,by+42);
-  x.fillStyle="#9a30e0"; x.font="800 18px -apple-system,Arial"; x.fillText("challenge code: "+seedToCode(S.seed),W/2,H-52);
-  x.fillStyle="#6a5a2a"; x.font="700 18px -apple-system,Arial"; x.fillText("a week-1 unit-economics game",W/2,H-26);
+  x.fillStyle="#6a5a2a"; x.font="700 18px -apple-system,Arial"; x.fillText("a week-1 unit-economics game",W/2,H-30);
 }
 function roundRect(x,a,b,w,h,r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.closePath(); }
 $("shareBtn").addEventListener("click",()=>{ Sound.pop(); drawShareCard(); $("sharePanel").classList.remove("hidden"); });
