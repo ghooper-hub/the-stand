@@ -734,7 +734,7 @@ function renderDeck(){
     L.appendChild(lever(`${p.emoji} Buy ${p.name} (spoils!)`,
       `${dollars(p.unit)} each (${dollars(p.bulkUnit)} at ${p.bulkQty}+). <b>Unsold lemonade spoils overnight.</b>`,
       stepperHTML("lem",S.lemBuy), isNew(S.mode,day,"buyLem")));
-    wireStepper("lem", v=>{S.lemBuy=v; updatePlan();}, 0,200,5); }
+    wireStepper("lem", v=>{S.lemBuy=v; updatePlan();}, 0,400,5); }
 
   if(U.buyCup){ const d2=CONFIG.durable;
     L.appendChild(lever(`${d2.emoji} Buy ${d2.name} (last forever)`,
@@ -768,7 +768,7 @@ function renderEvent(){
     <span class="etag">${ev.mult>=1?"📈":"📉"} ${ev.tag}</span>`;
 }
 function renderPredict(){
-  const max=Math.round(CONFIG.maxCustomers*3);   // headroom for stacked event + deal multipliers
+  const max=Math.round(CONFIG.maxCustomers*6);   // headroom for stacked event + deal multipliers
   S.predict=clamp(S.predict||25,0,max);
   $("predictBlock").className="predictBlock";
   $("predictBlock").innerHTML=`<h3>🔮 Your call: how many customers show up today?</h3>
