@@ -195,11 +195,17 @@
   @keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
   .standScene .rain line{stroke:#dce7f2;stroke-width:2.5;stroke-linecap:round;animation:rainfall .55s linear infinite;}
   @keyframes rainfall{from{transform:translateY(-16px);opacity:.3;}to{transform:translateY(34px);opacity:.9;}}
-  .standScene .shimmer{animation:shim 2s ease-in-out infinite;}
-  @keyframes shim{0%,100%{opacity:.25;}50%{opacity:.7;}}
+  .standScene .shimmer{animation:shim 2s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+  @keyframes shim{0%,100%{opacity:.55;}50%{opacity:1;}}
+  .standScene .cloud{animation:cloudDrift 22s ease-in-out infinite;}
+  .standScene .cloud2{animation:cloudDrift 30s ease-in-out infinite reverse;}
+  @keyframes cloudDrift{0%,100%{transform:translateX(-12px);}50%{transform:translateX(14px);}}
+  .standScene .sway{animation:sway 4s ease-in-out infinite;transform-box:fill-box;transform-origin:bottom center;}
+  @keyframes sway{0%,100%{transform:rotate(-2deg);}50%{transform:rotate(2deg);}}
   @media(prefers-reduced-motion:reduce){
     .standScene .cust{animation-duration:.01s;} .standScene .rain line{animation:none;}
-    #decor span,.logo,.balloon,.daydot.now,.taphint,.standScene .shimmer{animation:none !important;}
+    #decor span,.logo,.balloon,.daydot.now,.taphint,.standScene .shimmer,
+    .standScene .cloud,.standScene .cloud2,.standScene .sway{animation:none !important;}
   }
   .pl{width:100%;border-collapse:collapse;margin-top:6px;}
   .pl tr{animation:rise .35s ease both;}
@@ -978,47 +984,102 @@ function startResults(r){
 /* the animated "open for business" scene: stand + weather + customers */
 function renderStand(r){
   const ev=r.event||EVENTS.none, scene=$("standScene");
-  const sky={none:"#bfe3ff",heat:"#ffdca6",fair:"#c9e8ff",hype:"#ddccff",rain:"#a9b4c2",rival:"#c4dcee"}[ev.key]||"#bfe3ff";
-  scene.style.background=`linear-gradient(180deg,${sky} 0%, ${sky} 70%, #eaf7e0 70%)`;
+  const isRain=ev.key==="rain", sunBig=ev.key==="heat";
+  const SKY={none:["#8fc6ff","#dcf1ff"],heat:["#ffd089","#fff1d2"],fair:["#79c1ff","#dcf2ff"],
+    hype:["#b79bff","#ecdcff"],rain:["#7c8794","#b3bdc9"],rival:["#9cc6e6","#d8eaf6"]}[ev.key]||["#8fc6ff","#dcf1ff"];
+  scene.style.background=SKY[1];
 
-  // sky element by weather
-  let skyEl="";
-  if(ev.key==="rain"){
-    skyEl=`<g><ellipse cx="312" cy="40" rx="34" ry="18" fill="#8893a3"/><ellipse cx="286" cy="48" rx="22" ry="14" fill="#9aa6b5"/><ellipse cx="338" cy="48" rx="22" ry="14" fill="#9aa6b5"/></g>
-      <g class="rain">${[270,295,320,345,300,325].map((x,i)=>`<line x1="${x}" y1="60" x2="${x-6}" y2="78" style="animation-delay:${i*90}ms"/>`).join("")}</g>`;
-  } else {
-    const big=ev.key==="heat";
-    skyEl=`<circle cx="338" cy="38" r="${big?26:20}" fill="${big?'#ff9e00':'#ffd23f'}"/>`+
-      (big?`<g class="shimmer" stroke="#ff9e00" stroke-width="3" stroke-linecap="round">${[0,1,2,3,4,5,6,7].map(k=>{const a=k*Math.PI/4;return `<line x1="${338+Math.cos(a)*30}" y1="${38+Math.sin(a)*30}" x2="${338+Math.cos(a)*38}" y2="${38+Math.sin(a)*38}"/>`;}).join("")}</g>`:"");
-  }
-  // rival stand in the background
-  const rival = ev.key==="rival" ? `<g opacity=".55"><rect x="20" y="96" width="70" height="10" fill="#c0606a"/><rect x="24" y="106" width="62" height="20" fill="#9a7b5a"/><rect x="30" y="126" width="6" height="18" fill="#7a5e42"/><rect x="74" y="126" width="6" height="18" fill="#7a5e42"/></g>` : "";
+  // ---- sky furniture: sun, clouds, rain ----
+  const sun = isRain ? "" : `
+    <circle cx="334" cy="42" r="${sunBig?42:34}" fill="url(#sunGlow)"/>
+    ${sunBig?`<g class="shimmer" stroke="#ffae00" stroke-width="3.5" stroke-linecap="round">${[...Array(12)].map((_,k)=>{const a=k*Math.PI/6;return `<line x1="${(334+Math.cos(a)*26).toFixed(1)}" y1="${(42+Math.sin(a)*26).toFixed(1)}" x2="${(334+Math.cos(a)*36).toFixed(1)}" y2="${(42+Math.sin(a)*36).toFixed(1)}"/>`;}).join("")}</g>`:""}
+    <circle cx="334" cy="42" r="${sunBig?22:18}" fill="url(#sunCore)"/>`;
+  const cloud=(cls,x,y,s)=>`<g class="${cls}" opacity=".95" transform="translate(${x} ${y}) scale(${s})">
+    <ellipse cx="0" cy="2" rx="30" ry="10" fill="#fbfdff"/><ellipse cx="-15" cy="-2" rx="15" ry="11" fill="#fff"/>
+    <ellipse cx="6" cy="-5" rx="18" ry="13" fill="#fff"/><ellipse cx="20" cy="0" rx="14" ry="10" fill="#f1f8ff"/></g>`;
+  const clouds = isRain
+    ? `<g class="cloud"><ellipse cx="205" cy="34" rx="64" ry="22" fill="#6f7a87"/><ellipse cx="150" cy="44" rx="34" ry="17" fill="#828d9b"/><ellipse cx="262" cy="44" rx="40" ry="17" fill="#7e8997"/></g>`
+    : cloud("cloud",78,42,1)+cloud("cloud2",250,26,.72);
+  const rainEl = isRain ? `<g class="rain" stroke="#cfe0ef" stroke-width="2.5" stroke-linecap="round">${[...Array(16)].map((_,i)=>{const x=60+i*21;return `<line x1="${x}" y1="56" x2="${x-6}" y2="76" style="animation-delay:${i*60}ms"/>`;}).join("")}</g>` : "";
 
-  // awning stripes
-  let awn=""; for(let i=0;i<8;i++){ awn+=`<rect x="${110+i*22}" y="74" width="22" height="20" fill="${i%2?'#fff':'#e23b3b'}"/>`; }
-  let fringe=""; for(let i=0;i<8;i++){ fringe+=`<polygon points="${110+i*22},94 ${110+i*22+22},94 ${110+i*22+11},104" fill="${i%2?'#e23b3b':'#fff'}"/>`; }
+  // ---- background depth + ground ----
+  const hills=`<ellipse cx="80" cy="158" rx="160" ry="44" fill="#a7d97c" opacity=".75"/><ellipse cx="330" cy="156" rx="170" ry="46" fill="#97cd6c" opacity=".75"/>`;
+  const tufts=[28,66,104,300,344,376].map(x=>`<path d="M${x} 136 q -3 -11 0 -17 q 3 6 0 17 q 3 -9 5 -14 q 1 8 -2 14" fill="#7cb551"/>`).join("");
+  const flowers=[50,290,360].map((x,i)=>`<g transform="translate(${x} 132)"><circle r="3.4" fill="${['#ff7aa2','#ff9ecb','#ffd23f'][i]}"/><circle r="1.5" fill="#fff"/></g>`).join("");
 
-  const dealTag = r.dealOn ? `<g><rect x="150" y="48" width="100" height="20" rx="10" fill="#9a30e0"/><text x="200" y="63" text-anchor="middle" font-size="13" font-weight="900" fill="#fff">✨ DEAL ON</text></g>` : "";
+  // ---- decorations ----
+  const bunting=`<g opacity=".96"><path d="M110 30 Q200 22 290 30" stroke="#e8d9b0" stroke-width="1.4" fill="none"/>${[...Array(9)].map((_,i)=>{const t=i/8,x=110+t*180,y=30-Math.sin(t*Math.PI)*7+1,c=['#ff5a7a','#ffd23f','#4cc35e','#3aa0ff','#b14be0','#ff9e00'][i%6];return `<path d="M${x.toFixed(0)} ${y.toFixed(0)} l9 0 l-4.5 9 z" fill="${c}"/>`;}).join("")}</g>`;
+  const tree=`<g class="sway"><rect x="312" y="150" width="16" height="14" rx="2" fill="#bd7440"/><rect x="312" y="150" width="16" height="4" fill="#a96532"/>
+    <rect x="318" y="132" width="4" height="20" fill="#8a5e36"/>
+    <circle cx="320" cy="128" r="15" fill="#5fae63"/><circle cx="309" cy="134" r="9" fill="#6fbf73"/><circle cx="330" cy="135" r="9" fill="#54a35a"/>
+    <circle cx="313" cy="126" r="2.6" fill="#ffd23f"/><circle cx="326" cy="130" r="2.6" fill="#ffd23f"/><circle cx="321" cy="138" r="2.4" fill="#ffdb4d"/></g>`;
+  const rival = ev.key==="rival" ? `<g opacity=".6"><rect x="18" y="100" width="70" height="9" rx="3" fill="#c0606a"/><rect x="24" y="109" width="58" height="22" rx="2" fill="#9a7b5a"/><rect x="30" y="131" width="6" height="16" fill="#7a5e42"/><rect x="70" y="131" width="6" height="16" fill="#7a5e42"/></g>` : "";
+
+  // ---- the stand ----
+  const stripes=[...Array(8)].map((_,i)=>`<rect x="${104+i*24}" y="70" width="24" height="22" fill="${i%2?'#fff':'#e5483f'}"/>`).join("");
+  const scallops=[...Array(8)].map((_,i)=>`<circle cx="${104+i*24+12}" cy="92" r="12" fill="${i%2?'#e5483f':'#fff'}"/>`).join("");
+  const dealTag = r.dealOn ? `<g><rect x="152" y="46" width="96" height="19" rx="9.5" fill="#9a30e0"/><rect x="152" y="46" width="96" height="9" rx="9.5" fill="#fff" opacity=".18"/><text x="200" y="59" text-anchor="middle" font-size="12" font-weight="900" fill="#fff">✨ DEAL ON</text></g>` : "";
+  const mktSign=(r.mkt&&(r.mkt.flyers||r.mkt.social||r.mkt.radio||r.mkt.loyalty))?'<text x="86" y="152" font-size="24">🪧</text>':'';
+  const staff=r.staffHired>0?'<text x="252" y="116" font-size="20">🧑‍🤝‍🧑</text>':'';
 
   scene.innerHTML = `
     <svg viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
-      ${skyEl}${rival}
-      <!-- stand -->
-      <rect x="115" y="94" width="6" height="28" fill="#9a7b5a"/><rect x="279" y="94" width="6" height="28" fill="#9a7b5a"/>
-      ${awn}${fringe}
-      <text x="200" y="89" text-anchor="middle" font-size="15" font-weight="900" fill="#3a2d12">LEMONADE</text>
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${SKY[0]}"/><stop offset="1" stop-color="${SKY[1]}"/></linearGradient>
+        <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4e89c"/><stop offset="1" stop-color="#8cc05f"/></linearGradient>
+        <radialGradient id="sunGlow"><stop offset="0" stop-color="#fff3b0" stop-opacity=".85"/><stop offset="1" stop-color="#fff3b0" stop-opacity="0"/></radialGradient>
+        <radialGradient id="sunCore" cx=".4" cy=".4"><stop offset="0" stop-color="#fff39c"/><stop offset="1" stop-color="${sunBig?'#ff9e00':'#ffd23f'}"/></radialGradient>
+        <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aa7c4e"/><stop offset="1" stop-color="#855933"/></linearGradient>
+        <linearGradient id="counter" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d49a5b"/><stop offset="1" stop-color="#a86f3c"/></linearGradient>
+        <linearGradient id="jar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef8fc"/><stop offset="1" stop-color="#cfe6f0"/></linearGradient>
+        <linearGradient id="lem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe554"/><stop offset="1" stop-color="#ffc928"/></linearGradient>
+      </defs>
+      <rect x="0" y="0" width="400" height="138" fill="url(#sky)"/>
+      ${clouds}${sun}${rainEl}${bunting}
+      ${hills}
+      <rect x="0" y="132" width="400" height="68" fill="url(#grass)"/>
+      <rect x="0" y="132" width="400" height="3" fill="#d4f0ad" opacity=".7"/>
+      ${tufts}${flowers}${rival}
+      <!-- ground shadow -->
+      <ellipse cx="200" cy="179" rx="118" ry="11" fill="#3a2d12" opacity=".12"/>
+      ${tree}
+      <!-- posts -->
+      <rect x="109" y="86" width="8" height="92" rx="2" fill="url(#wood)"/>
+      <rect x="283" y="86" width="8" height="92" rx="2" fill="url(#wood)"/>
+      <!-- awning -->
+      <rect x="100" y="63" width="200" height="10" rx="5" fill="#c43b33"/>
+      ${stripes}
+      <rect x="104" y="70" width="192" height="6" fill="#fff" opacity=".22"/>
+      ${scallops}
+      <rect x="150" y="72" width="100" height="20" rx="6" fill="#fff7e0" stroke="#e0c878" stroke-width="1.5"/>
+      <text x="200" y="87" text-anchor="middle" font-size="14.5" font-weight="900" fill="#b5740a" letter-spacing="1.5">LEMONADE</text>
       ${dealTag}
       <!-- counter -->
-      <rect x="120" y="120" width="160" height="34" rx="4" fill="#c98a4e"/>
-      <rect x="120" y="120" width="160" height="9" fill="#b5743a"/>
-      <rect x="128" y="154" width="8" height="20" fill="#8a5e36"/><rect x="264" y="154" width="8" height="20" fill="#8a5e36"/>
-      <rect x="150" y="131" width="100" height="18" rx="4" fill="#fff7d6" stroke="#e0c878"/>
-      <text x="200" y="145" text-anchor="middle" font-size="13" font-weight="900" fill="#b5740a">${dollars(S.price)} / cup</text>
-      <!-- pitcher + you -->
-      <rect x="138" y="104" width="22" height="20" rx="4" fill="#ffd23f" stroke="#e0a800"/><rect x="158" y="109" width="6" height="6" fill="#ffd23f"/>
-      <text x="232" y="118" font-size="26">🧑‍🍳</text>
-      ${(r.mkt&&(r.mkt.flyers||r.mkt.social||r.mkt.radio||r.mkt.loyalty))?'<text x="96" y="150" font-size="24">🪧</text>':''}
-      ${r.staffHired>0?'<text x="262" y="118" font-size="22">🧑‍🤝‍🧑</text>':''}
+      <rect x="116" y="117" width="168" height="8" rx="3" fill="#dca469"/>
+      <rect x="120" y="124" width="160" height="34" rx="3" fill="url(#counter)"/>
+      <line x1="120" y1="136" x2="280" y2="136" stroke="#9a6534" stroke-width="1" opacity=".5"/>
+      <line x1="120" y1="148" x2="280" y2="148" stroke="#9a6534" stroke-width="1" opacity=".5"/>
+      <rect x="128" y="158" width="9" height="18" fill="#8a5e36"/><rect x="263" y="158" width="9" height="18" fill="#8a5e36"/>
+      <!-- price sign on counter front -->
+      <rect x="150" y="132" width="100" height="19" rx="5" fill="#fff7d6" stroke="#e0c878" stroke-width="1.5"/>
+      <text x="200" y="145" text-anchor="middle" font-size="12.5" font-weight="900" fill="#b5740a">${dollars(S.price)} / cup</text>
+      <!-- the chef -->
+      <text x="226" y="116" font-size="26">🧑‍🍳</text>
+      ${staff}
+      <!-- bowl of lemons -->
+      <ellipse cx="198" cy="118" rx="15" ry="5" fill="#b5743a"/>
+      <circle cx="191" cy="114" r="4" fill="#ffd23f"/><circle cx="199" cy="113" r="4.2" fill="#ffdb4d"/><circle cx="206" cy="115" r="3.6" fill="#ffd23f"/>
+      <!-- glass lemonade dispenser -->
+      <rect x="146" y="90" width="12" height="5" rx="2" fill="#bfe0ef"/>
+      <rect x="138" y="95" width="30" height="25" rx="4" fill="url(#jar)" stroke="#bcdcea" stroke-width="1.5"/>
+      <rect x="141" y="104" width="24" height="14" rx="2" fill="url(#lem)"/>
+      <circle cx="148" cy="111" r="3" fill="#fff07a" stroke="#ffb703" stroke-width=".8"/><circle cx="159" cy="109" r="2.6" fill="#ffe14d" stroke="#ffb703" stroke-width=".8"/>
+      <rect x="140" y="98" width="5" height="16" fill="#fff" opacity=".35"/>
+      <rect x="133" y="112" width="6" height="3.5" rx="1" fill="#8a8f93"/><rect x="135" y="115" width="2.5" height="5" fill="#8a8f93"/>
+      <!-- cups of lemonade -->
+      <path d="M248 108 l2 11 h9 l2 -11 z" fill="#fff3b0" stroke="#e0c878" stroke-width="1"/>
+      <path d="M260 110 l1.7 9 h7.6 l1.7 -9 z" fill="#fff3b0" stroke="#e0c878" stroke-width="1"/>
+      ${mktSign}
     </svg>
     <div class="live" id="liveServe">🥤 0</div>`;
 
